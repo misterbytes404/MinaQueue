@@ -33,11 +33,27 @@ interface Client {
 
 const clients: Client[] = [];
 
+// Default overlay settings (same as in OverlayMode.tsx)
+const defaultOverlaySettings = {
+  alertImageUrl: null,
+  alertImageSize: 100,
+  fontFamily: 'system-ui',
+  fontSize: 24,
+  usernameColor: '#FF99CC',
+  amountColor: '#FFD700',
+  messageColor: '#F5E6D3',
+  alertBackgroundColor: '#B766D6',
+  alertBorderColor: '#FF99CC',
+  alertDuration: 5000,
+  showAmount: true,
+  showMessage: true,
+};
+
 // Current state (so new overlay clients get current state)
 const currentState = {
   gateOpen: true,
   queue: [] as unknown[],
-  settings: {} as Record<string, unknown>,
+  settings: { ...defaultOverlaySettings } as Record<string, unknown>,
 };
 
 const wss = new WebSocketServer({ port: PORT });

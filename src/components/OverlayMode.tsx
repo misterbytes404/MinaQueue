@@ -88,7 +88,8 @@ export function OverlayMode() {
         break;
         
       case 'settings':
-        setOverlaySettings(message.settings);
+        // Merge with defaults to ensure all required properties exist
+        setOverlaySettings({ ...defaultOverlaySettings, ...message.settings });
         break;
         
       case 'state':
@@ -106,8 +107,9 @@ export function OverlayMode() {
             queue: newQueue,
           };
         });
-        if (message.settings) {
-          setOverlaySettings(message.settings);
+        // Only update settings if we got a non-empty settings object
+        if (message.settings && Object.keys(message.settings).length > 0) {
+          setOverlaySettings({ ...defaultOverlaySettings, ...message.settings });
         }
         break;
         
