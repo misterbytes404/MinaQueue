@@ -5,6 +5,7 @@
 
 import { io, Socket } from 'socket.io-client';
 import type { StreamLabsEvent, QueueItem } from '../types';
+import { info } from '../lib/logger';
 
 // StreamLabs OAuth Configuration
 // You'll need to register an app at https://dev.streamlabs.com/
@@ -98,12 +99,12 @@ export class StreamLabsService {
     });
 
     this.socket.on('connect', () => {
-      console.log('[StreamLabs] Socket connected');
+      info('[StreamLabs] Socket connected');
       onConnectionChange(true);
     });
 
     this.socket.on('disconnect', () => {
-      console.log('[StreamLabs] Socket disconnected');
+      info('[StreamLabs] Socket disconnected');
       onConnectionChange(false);
     });
 

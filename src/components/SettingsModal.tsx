@@ -1,6 +1,7 @@
 import { X, FlaskConical, ExternalLink, Palette, Copy, Check, Link } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { useState, useMemo } from 'react';
+import { error } from '../lib/logger';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -48,7 +49,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      error('Failed to copy:', err);
     }
   };
 

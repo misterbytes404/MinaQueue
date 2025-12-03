@@ -22,6 +22,7 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
+import { info, debug, error } from '../src/lib/logger';
 
 const PORT = 5175;
 
@@ -41,12 +42,12 @@ const currentState = {
 
 const wss = new WebSocketServer({ port: PORT });
 
-console.log(`[Overlay Server] WebSocket server running on ws://localhost:${PORT}`);
+info(`[Overlay Server] WebSocket server running on ws://localhost:${PORT}`);
 
 wss.on('connection', (ws) => {
   const client: Client = { ws, type: 'unknown' };
   clients.push(client);
-  console.log('[Overlay Server] New client connected');
+  info('[Overlay Server] New client connected');
 
   // Send current state to new client
   ws.send(JSON.stringify({ type: 'state', ...currentState }));
@@ -54,14 +55,14 @@ wss.on('connection', (ws) => {
   ws.on('message', (data) => {
     try {
       const message = JSON.parse(data.toString());
-      console.log('[Overlay Server] Received:', message.type);
+      debug('[Overlay Server] Received:', message.type);
 
       // Identify client type
-      if (message.type === 'identify') {
-        client.type = message.clientType;
-        console.log(`[Overlay Server] Client identified as: ${client.type}`);
-        return;
-      }
+        if (message.type === 'identify') {
+          client.type = message.clientType;
+          info(`[Overlay Server] Client identified as: ${client.type}`);
+          return;
+        }
 
       // Update state based on message
       switch (message.type) {
@@ -89,7 +90,7 @@ wss.on('connection', (ws) => {
         }
       });
     } catch (err) {
-      console.error('[Overlay Server] Error parsing message:', err);
+      error('[Overlay Server] Error parsing message:', err);
     }
   });
 
@@ -98,17 +99,17 @@ wss.on('connection', (ws) => {
     if (index > -1) {
       clients.splice(index, 1);
     }
-    console.log(`[Overlay Server] Client disconnected (${client.type})`);
+    info(`[Overlay Server] Client disconnected (${client.type})`);
   });
 
   ws.on('error', (err) => {
-    console.error('[Overlay Server] WebSocket error:', err);
+    error('[Overlay Server] WebSocket error:', err);
   });
 });
 
 // Keep process alive
 process.on('SIGINT', () => {
-  console.log('[Overlay Server] Shutting down...');
+  info('[Overlay Server] Shutting down...');
   wss.close();
   process.exit(0);
 });

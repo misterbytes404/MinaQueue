@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { error } from '../lib/logger';
 import { Loader2, FlaskConical } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { streamLabsService } from '../services/streamlabs';
@@ -32,8 +33,8 @@ export function GateControl() {
       
       // Toggle local state
       toggleGate();
-    } catch (error) {
-      console.error('Failed to toggle gate:', error);
+    } catch (err) {
+      error('Failed to toggle gate:', err);
       // Still toggle local state even if API fails
       toggleGate();
     } finally {

@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef, useState } from 'react';
 import { AlertDisplay } from './AlertDisplay';
 import type { QueueItem, OverlaySettings } from '../types';
 import { useOverlayWS, type WSMessageType } from '../hooks/useOverlayWS';
+import { debug, info, warn, error } from '../lib/logger';
 
 /**
  * OBS Overlay Mode - WebSocket Client
@@ -63,7 +64,7 @@ export function OverlayMode() {
 
   // Handle incoming WebSocket messages
   const handleMessage = useCallback((message: WSMessageType) => {
-    console.log('[Overlay] Received:', message.type);
+    debug('[Overlay] Received:', message.type);
     
     switch (message.type) {
       case 'gate':
@@ -212,7 +213,7 @@ export function OverlayMode() {
     
     // Don't schedule items we've already played TTS for
     if (playedItemIds.current.has(nextPendingItem.id)) {
-      console.log('[Overlay] Skipping already-played item:', nextPendingItem.id);
+      debug('[Overlay] Skipping already-played item:', nextPendingItem.id);
       // Mark it as played in local state
       setState(prev => ({
         ...prev,
@@ -230,11 +231,11 @@ export function OverlayMode() {
       ? 100  // No delay for first alert
       : Math.max(100, DELAY_BETWEEN_ALERTS - timeSinceLastCompleted);
     
-    console.log('[Overlay] Scheduling next alert in', delayNeeded, 'ms:', nextPendingItem.username, '(id:', nextPendingItem.id, ')');
+    debug('[Overlay] Scheduling next alert in', delayNeeded, 'ms:', nextPendingItem.username, '(id:', nextPendingItem.id, ')');
     scheduledItemId.current = nextPendingItem.id;
     
     const timeoutId = setTimeout(() => {
-      console.log('[Overlay] Auto-starting:', nextPendingItem.username);
+      debug('[Overlay] Auto-starting:', nextPendingItem.username);
       setTtsFinished(false);
       setState(prev => ({
         ...prev,
@@ -261,7 +262,7 @@ export function OverlayMode() {
       return;
     }
     
-    console.log('[Overlay] Playing TTS for:', playingItem.username);
+    info('[Overlay] Playing TTS for:', playingItem.username);
     lastPlayingId.current = playingItem.id;
     playedItemIds.current.add(playingItem.id); // Mark as played
     
@@ -277,7 +278,7 @@ export function OverlayMode() {
       
       // Mark TTS as finished when it completes — record completion time
       utterance.onend = () => {
-        console.log('[Overlay] TTS finished');
+        debug('[Overlay] TTS finished');
         // Record actual TTS completion time to enforce post-TTS delay
         lastCompletedTime.current = Date.now();
         setTtsFinished(true);
@@ -286,13 +287,13 @@ export function OverlayMode() {
           try {
             sendPlayed(playingItem.id);
           } catch (e) {
-            console.warn('[Overlay] sendPlayed failed on utterance end', e);
+            warn('[Overlay] sendPlayed failed on utterance end', e);
           }
         }
       };
       
       utterance.onerror = () => {
-        console.log('[Overlay] TTS error');
+        error('[Overlay] TTS error');
         lastCompletedTime.current = Date.now();
         setTtsFinished(true);
       };
@@ -316,7 +317,7 @@ export function OverlayMode() {
   // Mark alert complete and notify dashboard
   const handleAlertComplete = useCallback(() => {
     const currentPlaying = state.queue.find(item => item.status === 'playing');
-    console.log('[Overlay] Alert complete:', currentPlaying?.id);
+    debug('[Overlay] Alert complete:', currentPlaying?.id);
     
     // Do NOT cancel speech here — TTS should have finished already.
     setTtsFinished(true);
@@ -333,7 +334,7 @@ export function OverlayMode() {
       try {
         sendPlayed(currentPlaying.id);
       } catch (e) {
-        console.warn('[Overlay] sendPlayed failed on alert complete', e);
+        warn('[Overlay] sendPlayed failed on alert complete', e);
       }
     }
     

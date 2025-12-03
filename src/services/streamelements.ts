@@ -5,6 +5,7 @@
 
 import { io, Socket } from 'socket.io-client';
 import type { StreamElementsEvent, QueueItem } from '../types';
+import { info, debug, warn } from '../lib/logger';
 
 // StreamElements Configuration
 // Get your JWT token from StreamElements dashboard: https://streamelements.com/dashboard/account/channels
@@ -26,7 +27,7 @@ export class StreamElementsService {
   ): void {
     // Prevent duplicate connections
     if (this.socket || this.isConnecting) {
-      console.log('[StreamElements] Already connected or connecting, skipping');
+      debug('[StreamElements] Already connected or connecting, skipping');
       return;
     }
     
@@ -38,25 +39,25 @@ export class StreamElementsService {
     });
 
     this.socket.on('connect', () => {
-      console.log('[StreamElements] Socket connected');
+      info('[StreamElements] Socket connected');
       // Authenticate with JWT
       this.socket?.emit('authenticate', { method: 'jwt', token: jwtToken });
     });
 
     this.socket.on('authenticated', () => {
-      console.log('[StreamElements] Authenticated successfully');
+      info('[StreamElements] Authenticated successfully');
       this.isConnecting = false;
       onConnectionChange(true);
     });
 
     this.socket.on('disconnect', () => {
-      console.log('[StreamElements] Socket disconnected');
+      info('[StreamElements] Socket disconnected');
       this.isConnecting = false;
       onConnectionChange(false);
     });
 
-    this.socket.on('unauthorized', (error: unknown) => {
-      console.error('[StreamElements] Authentication failed:', error);
+    this.socket.on('unauthorized', (authError: unknown) => {
+      warn('[StreamElements] Authentication failed:', authError);
       this.isConnecting = false;
       onConnectionChange(false);
     });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { QueueItem, OverlaySettings } from '../types';
+import { debug } from '../lib/logger';
 
 interface AlertDisplayProps {
   item: QueueItem | null;
@@ -45,7 +46,7 @@ export function AlertDisplay({
 
   // Complete the alert (start exit animation then hide)
   const completeAlert = useCallback(() => {
-    console.log('[AlertDisplay] Completing alert');
+    debug('[AlertDisplay] Completing alert');
     setDisplayState('exiting');
     
     // After exit animation, hide and notify parent
@@ -83,7 +84,7 @@ export function AlertDisplay({
     }
     
     // New item to show
-    console.log('[AlertDisplay] Showing new alert:', item.username);
+    debug('[AlertDisplay] Showing new alert:', item.username);
     currentItemRef.current = item.id;
     clearTimers();
     setDisplayState('visible');
@@ -94,7 +95,7 @@ export function AlertDisplay({
     
     // Set timer for minimum display time
     minTimeTimerRef.current = window.setTimeout(() => {
-      console.log('[AlertDisplay] Min time elapsed');
+      debug('[AlertDisplay] Min time elapsed');
       setMinTimeElapsed(true);
     }, minDisplayTime);
     
@@ -109,11 +110,11 @@ export function AlertDisplay({
     if (!minTimeElapsed) return;
     
     if (waitForTTS && !ttsFinished) {
-      console.log('[AlertDisplay] Waiting for TTS to finish...');
+      debug('[AlertDisplay] Waiting for TTS to finish...');
       return;
     }
     
-    console.log('[AlertDisplay] Ready to complete (minTime:', minTimeElapsed, 'ttsFinished:', ttsFinished, ')');
+    debug('[AlertDisplay] Ready to complete (minTime:', minTimeElapsed, 'ttsFinished:', ttsFinished, ')');
     completeAlert();
   }, [displayState, minTimeElapsed, waitForTTS, ttsFinished, completeAlert]);
 

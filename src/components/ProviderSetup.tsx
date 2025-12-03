@@ -3,6 +3,7 @@ import { ExternalLink, Check, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { streamLabsService } from '../services/streamlabs';
 import { streamElementsService } from '../services/streamelements';
+import { error } from '../lib/logger';
 import type { AlertProvider } from '../types';
 
 export function ProviderSetup() {
@@ -16,11 +17,11 @@ export function ProviderSetup() {
   
   const [jwtToken, setJwtToken] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleProviderSelect = (provider: AlertProvider) => {
     setProviderConnection({ provider });
-    setError(null);
+    setErrorMessage(null);
   };
 
   const handleStreamLabsConnect = () => {
@@ -31,18 +32,18 @@ export function ProviderSetup() {
 
   const handleStreamElementsConnect = async () => {
     if (!jwtToken.trim()) {
-      setError('Please enter your JWT token');
+      setErrorMessage('Please enter your JWT token');
       return;
     }
 
     setIsConnecting(true);
-    setError(null);
+    setErrorMessage(null);
 
     try {
       const isValid = await streamElementsService.validateToken(jwtToken);
       
       if (!isValid) {
-        setError('Invalid JWT token. Please check and try again.');
+        setErrorMessage('Invalid JWT token. Please check and try again.');
         setIsConnecting(false);
         return;
       }
@@ -67,8 +68,8 @@ export function ProviderSetup() {
       });
       setConnectionStatus('connected');
     } catch (err) {
-      setError('Failed to connect. Please try again.');
-      console.error(err);
+      setErrorMessage('Failed to connect. Please try again.');
+      error(err);
     } finally {
       setIsConnecting(false);
     }
@@ -162,7 +163,7 @@ export function ProviderSetup() {
         <div className="space-y-4">
           <div className="p-4 bg-bone-white/5 rounded-lg">
             <p className="text-sm text-bone-white/80 mb-3">
-              Click below to authorize Minaqueue with your StreamLabs account.
+              Click below to authorize MinaQueue with your StreamLabs account.
             </p>
             <button
               onClick={handleStreamLabsConnect}
@@ -219,9 +220,9 @@ export function ProviderSetup() {
       )}
 
       {/* Error Message */}
-      {error && (
+      {errorMessage && (
         <div className="mt-4 p-3 bg-hellfire-red/20 border border-hellfire-red/50 rounded-lg">
-          <p className="text-sm text-hellfire-red">{error}</p>
+          <p className="text-sm text-hellfire-red">{errorMessage}</p>
         </div>
       )}
     </div>

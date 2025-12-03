@@ -1,6 +1,6 @@
-# 🦴 Minaqueue - TTS Queue Manager for Streamers
+# 🦴 MinaQueue - TTS Queue Manager for Streamers
 
-A custom TTS (Text-to-Speech) queue management dashboard designed for VTubers and streamers. Minaqueue lets you **pause incoming TTS alerts** during cutscenes or important moments, then **resume them later** - no more interruptions during dramatic moments!
+A custom TTS (Text-to-Speech) queue management dashboard designed for VTubers and streamers. MinaQueue lets you **pause incoming TTS alerts** during cutscenes or important moments, then **resume them later** - no more interruptions during dramatic moments!
 
 ![Theme: Cute Underworld / Hellhound]
 
@@ -22,13 +22,13 @@ A custom TTS (Text-to-Speech) queue management dashboard designed for VTubers an
 
 ## 🎮 How It Works
 
-Minaqueue acts as an **intermediary** between your alert provider (StreamElements/StreamLabs) and OBS:
+MinaQueue acts as an **intermediary** between your alert provider (StreamElements/StreamLabs) and OBS:
 
-1. **Connect Minaqueue** to your alert provider
-2. **Add Minaqueue's Overlay** as an OBS Browser Source
+1. **Connect MinaQueue** to your alert provider
+2. **Add MinaQueue's Overlay** as an OBS Browser Source
 3. **Disable** your native StreamElements/StreamLabs alert box
 4. When the **Gate is CLOSED**, alerts queue up silently
-5. When the **Gate is OPEN**, alerts display through the Minaqueue overlay
+5. When the **Gate is OPEN**, alerts display through the MinaQueue overlay
 
 This gives you **full control** over when alerts appear AND play TTS!
 
@@ -36,24 +36,24 @@ This gives you **full control** over when alerts appear AND play TTS!
 
 ## 🚀 Quick Start (For Streamers)
 
-### Step 1: Deploy Minaqueue
+### Step 1: Deploy MinaQueue
 
-Choose one of the [Deployment Options](#-deployment-options) below to get your own Minaqueue instance.
+Choose one of the [Deployment Options](#-deployment-options) below to get your own MinaQueue instance.
 
 ### Step 2: Connect to StreamElements (Recommended - Easiest!)
 
 1. Go to your [StreamElements Dashboard](https://streamelements.com/dashboard/account/channels)
 2. Click **"Show secrets"** under Account Settings
 3. Copy your **JWT Token**
-4. Open Minaqueue and select "StreamElements"
+4. Open MinaQueue and select "StreamElements"
 5. Paste your JWT Token and click **Connect**
-6. Done! Your alerts will now appear in Minaqueue
+6. Done! Your alerts will now appear in MinaQueue
 
 ### Step 3: Set Up OBS Browser Source
 
 **⚠️ IMPORTANT: This step is required for the Gate feature to work properly!**
 
-Minaqueue includes a special **overlay mode** that acts as your alert display in OBS.
+MinaQueue includes a special **overlay mode** that acts as your alert display in OBS.
 
 1. **In OBS**, add a new **Browser Source**
 2. Set the URL to one of:
@@ -73,7 +73,7 @@ Minaqueue includes a special **overlay mode** that acts as your alert display in
 
 ### Step 4: Test It!
 
-1. Open Minaqueue dashboard in a browser tab
+1. Open MinaQueue dashboard in a browser tab
 2. Click **⚙️ Settings** → **Add Test Message**
 3. With the **Gate OPEN**, you should see the alert in OBS
 4. **Close the Gate** and add another test - it should queue up
@@ -205,6 +205,29 @@ pnpm dev
 # Open http://localhost:5173
 ```
 
+### Local Overlay WebSocket Server (for OBS)
+
+When running MinaQueue locally, the overlay in OBS communicates with the dashboard through a small WebSocket bridge server. Start it alongside the Vite dev server so the Overlay page in OBS receives queue/gate/settings updates.
+
+PowerShell (recommended):
+
+```powershell
+# Install deps (first time)
+pnpm install
+
+# Start the overlay WebSocket server
+pnpm run server
+
+# In another terminal, start the dev server
+pnpm run dev
+
+# Dashboard: http://localhost:5173
+# Overlay (OBS Browser Source): http://localhost:5173/overlay
+# WebSocket server: ws://localhost:5175
+```
+
+Important: OBS embeds the overlay in a separate Chromium instance which does not share your browser's localStorage. The WebSocket bridge (the server above) is required for the OBS overlay to get the dashboard's live state when running locally or from a static host.
+
 ---
 
 ## ⚙️ Configuration
@@ -216,7 +239,7 @@ StreamElements is the easiest option - no app registration required!
 1. Go to [StreamElements Dashboard](https://streamelements.com/dashboard/account/channels)
 2. Scroll down to **"Show secrets"**
 3. Copy the **JWT Token** (long string of characters)
-4. In Minaqueue, select StreamElements and paste the token
+4. In MinaQueue, select StreamElements and paste the token
 5. Click Connect
 
 **Security Note:** Your JWT token is stored locally in your browser and never sent to any server except StreamElements.
@@ -237,7 +260,7 @@ StreamLabs requires creating an application for OAuth:
    - Copy your **Client ID**
    - Copy your **Client Secret**
 
-3. **Configure Minaqueue:**
+3. **Configure MinaQueue:**
    
    Create a `.env` file in the project root:
    ```env
@@ -258,7 +281,7 @@ StreamLabs requires creating an application for OAuth:
 
 ```
 ┌─────────────┐     ┌───────────────┐     ┌──────────────┐
-│ StreamElements │──▶│   Minaqueue   │──▶│ OBS Browser  │
+│ StreamElements │──▶│   MinaQueue   │──▶│ OBS Browser  │
 │  / StreamLabs  │   │   Dashboard   │   │    Source    │
 └─────────────┘     └───────────────┘     └──────────────┘
        │                    │                    │
@@ -270,7 +293,7 @@ StreamLabs requires creating an application for OAuth:
 
 1. **Connect your provider** (StreamElements or StreamLabs) in the dashboard
 2. **Add the overlay** as an OBS Browser Source (see [Quick Start](#-quick-start-for-streamers))
-3. **Keep Minaqueue open** in a browser tab during your stream
+3. **Keep MinaQueue open** in a browser tab during your stream
 4. **Close the Gate** when you need silence (cutscenes, important moments)
 5. **Open the Gate** when ready to play queued alerts
 6. Alerts display in OBS and TTS plays automatically
@@ -299,9 +322,9 @@ StreamLabs requires creating an application for OAuth:
 
 ## 🧪 Testing Without Going Live
 
-You can test Minaqueue without connecting to any service:
+You can test MinaQueue without connecting to any service:
 
-1. Open Minaqueue
+1. Open MinaQueue
 2. Click the **⚙️ Settings** button
 3. Click **"Add Test Message"**
 4. Test messages will appear in your queue
@@ -365,7 +388,7 @@ This is great for:
 - **Vite** - Build tool
 - **Tailwind CSS** - Styling
 - **Zustand** - State management
-- **Socket.io** - Real-time events
+ - **ws (WebSocket)** - Overlay <-> Dashboard bridge (server uses `ws`)
 - **Web Speech API** - Browser TTS
 
 ---
@@ -413,4 +436,24 @@ MIT License - feel free to use this for your own streams!
 
 ---
 
+## 🛠️ Developer Notes
+
+- **Overlay WebSocket bridge:** `server/overlay-server.ts` runs on `5175` by default and relays messages between the dashboard and the OBS overlay. Use `pnpm run server` to start it (the project uses `tsx` so you can run it directly).
+- **Client hook:** `src/hooks/useOverlayWS.ts` contains the client WebSocket helper used by both the dashboard and the overlay page.
+- **Overlay logic:** `src/components/OverlayMode.tsx` contains scheduling, TTS playback, and the logic that prevents duplicate playback. `AlertDisplay.tsx` handles the visual lifecycle and can optionally wait for TTS to finish before removing the alert.
+- **Marking played:** When the overlay finishes speaking an alert it sends a `{ type: 'played', itemId }` message. The dashboard listens for this and calls `markItemPlayed` in `src/store/useAppStore.ts` to keep canonical state in sync.
+- **Test alerts:** The dashboard's `GateControl.tsx` includes a **Send Test Alert** button (Settings → Add Test Message) that adds a queue item for local testing.
+
+- **Cleaning dev logs:** There are a number of `console.log()` statements across the codebase used for debugging (overlay server, overlay client, provider services). Before production deployment you may want to remove or guard them behind a debug flag. Quick scan suggestions:
+   - `server/overlay-server.ts` — server logs
+   - `src/components/OverlayMode.tsx` — overlay runtime logs
+   - `src/hooks/useOverlayWS.ts` — connection events
+
+- **Formatting & build:**
+   - Install: `pnpm install`
+   - Dev: `pnpm run dev` (frontend), `pnpm run server` (WS bridge)
+   - Build: `pnpm run build`
+
 ## 💜 Credits
+
+- BytesWan | Coder Minawan

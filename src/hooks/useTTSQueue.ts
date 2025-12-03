@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAppStore } from '../store/useAppStore';
+import { error } from '../lib/logger';
 
 /**
  * Hook to manage TTS playback from the queue.
@@ -45,7 +46,7 @@ export function useTTSQueue() {
       };
 
       utterance.onerror = (event) => {
-        console.error('[TTS] Error:', event.error);
+        error('[TTS] Error:', event.error);
         isSpeakingRef.current = false;
         currentItemIdRef.current = null;
         updateItemStatus(itemId, 'played');

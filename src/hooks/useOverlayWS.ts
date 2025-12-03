@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { debug, info, warn, error } from '../lib/logger';
 import type { QueueItem, OverlaySettings } from '../types';
 
 const WS_URL = 'ws://localhost:5175';
@@ -41,12 +42,12 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    console.log(`[WS ${clientType}] Connecting to ${WS_URL}...`);
+    debug(`[WS ${clientType}] Connecting to ${WS_URL}...`);
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log(`[WS ${clientType}] Connected!`);
+      info(`[WS ${clientType}] Connected!`);
       setIsConnected(true);
       // Identify ourselves
       ws.send(JSON.stringify({ type: 'identify', clientType }));
@@ -58,19 +59,19 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
         const message = JSON.parse(event.data) as WSMessageType;
         onMessageRef.current?.(message);
       } catch (err) {
-        console.error(`[WS ${clientType}] Error parsing message:`, err);
+        error(`[WS ${clientType}] Error parsing message:`, err);
       }
     };
 
     ws.onclose = () => {
-      console.log(`[WS ${clientType}] Disconnected`);
+      info(`[WS ${clientType}] Disconnected`);
       setIsConnected(false);
       wsRef.current = null;
       onDisconnectRef.current?.();
 
       // Auto-reconnect after 2 seconds
       reconnectTimeoutRef.current = window.setTimeout(() => {
-        console.log(`[WS ${clientType}] Attempting reconnect...`);
+        warn(`[WS ${clientType}] Attempting reconnect...`);
         if (wsRef.current?.readyState !== WebSocket.OPEN) {
           const newWs = new WebSocket(WS_URL);
           wsRef.current = newWs;
@@ -80,7 +81,7 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
     };
 
     ws.onerror = (err) => {
-      console.error(`[WS ${clientType}] Error:`, err);
+      error(`[WS ${clientType}] Error:`, err);
     };
     
     function setupWebSocket(socket: WebSocket) {
@@ -106,7 +107,7 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(message));
     } else {
-      console.warn(`[WS ${clientType}] Cannot send - not connected`);
+      warn(`[WS ${clientType}] Cannot send - not connected`);
     }
   }, [clientType]);
 

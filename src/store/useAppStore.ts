@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { QueueItem, AppSettings, ConnectionStatus, AlertProvider, ProviderConnection, OverlaySettings } from '../types';
+import { error } from '../lib/logger';
 
 interface AppState {
   // Queue
@@ -190,7 +191,7 @@ export const useAppStore = create<AppState>()(
             }
           }
         } catch (e) {
-          console.error('Failed to sync from storage:', e);
+          error('Failed to sync from storage:', e);
         }
       },
     }),

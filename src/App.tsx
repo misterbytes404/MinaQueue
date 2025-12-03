@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { info, debug } from './lib/logger';
 import { Header } from './components/Header';
 import { GateControl } from './components/GateControl';
 import { QueueList } from './components/QueueList';
@@ -41,13 +42,13 @@ function App() {
   // Handle messages from overlay (e.g., when an alert finishes playing)
   const handleWSMessage = useCallback((message: WSMessageType) => {
     if (message.type === 'played') {
-      console.log('[Dashboard] Overlay finished playing:', message.itemId);
+      info('[Dashboard] Overlay finished playing:', message.itemId);
       markItemPlayed(message.itemId);
     }
   }, [markItemPlayed]);
   
   const handleWSConnect = useCallback(() => {
-    console.log('[Dashboard] Connected to overlay server');
+    info('[Dashboard] Connected to overlay server');
   }, []);
   
   const { isConnected: wsConnected, sendQueue, sendGate, sendSettings, sendPlay } = useOverlayWS({
@@ -59,7 +60,7 @@ function App() {
   // Broadcast queue changes to overlay
   useEffect(() => {
     if (wsConnected && shouldConnectWS) {
-      console.log('[Dashboard] Broadcasting queue update:', queue.length, 'items');
+      debug('[Dashboard] Broadcasting queue update:', queue.length, 'items');
       sendQueue(queue);
     }
   }, [queue, wsConnected, sendQueue, shouldConnectWS]);
@@ -67,7 +68,7 @@ function App() {
   // Broadcast gate changes to overlay
   useEffect(() => {
     if (wsConnected && shouldConnectWS) {
-      console.log('[Dashboard] Broadcasting gate:', settings.isOpen ? 'OPEN' : 'CLOSED');
+      debug('[Dashboard] Broadcasting gate:', settings.isOpen ? 'OPEN' : 'CLOSED');
       sendGate(settings.isOpen);
     }
   }, [settings.isOpen, wsConnected, sendGate, shouldConnectWS]);
@@ -75,7 +76,7 @@ function App() {
   // Broadcast overlay settings changes
   useEffect(() => {
     if (wsConnected && shouldConnectWS && settings.overlay) {
-      console.log('[Dashboard] Broadcasting overlay settings');
+      debug('[Dashboard] Broadcasting overlay settings');
       sendSettings(settings.overlay);
     }
   }, [settings.overlay, wsConnected, sendSettings, shouldConnectWS]);
@@ -95,7 +96,7 @@ function App() {
     
     hasAttemptedReconnect.current = true;
     
-    console.log('[Dashboard] Connecting to', providerConnection.provider);
+    info('[Dashboard] Connecting to', providerConnection.provider);
     
     if (providerConnection.provider === 'streamelements') {
       streamElementsService.connectWithToken(
@@ -106,7 +107,7 @@ function App() {
           }
         },
         (connected) => {
-          console.log('[Dashboard] StreamElements:', connected ? 'connected' : 'disconnected');
+          info('[Dashboard] StreamElements:', connected ? 'connected' : 'disconnected');
           setConnectionStatus(connected ? 'connected' : 'disconnected');
         }
       );
@@ -120,7 +121,7 @@ function App() {
           }
         },
         (connected) => {
-          console.log('[Dashboard] StreamLabs:', connected ? 'connected' : 'disconnected');
+          info('[Dashboard] StreamLabs:', connected ? 'connected' : 'disconnected');
           setConnectionStatus(connected ? 'connected' : 'disconnected');
         }
       );

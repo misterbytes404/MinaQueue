@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { streamLabsService } from '../services/streamlabs';
+import { error } from '../lib/logger';
 
 /**
  * OAuth callback handler component
@@ -15,11 +16,11 @@ export function AuthCallback() {
     const handleCallback = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
-      const error = urlParams.get('error');
+      const authError = urlParams.get('error');
 
-      if (error) {
+      if (authError) {
         setStatus('error');
-        setMessage(`Authentication failed: ${error}`);
+        setMessage(`Authentication failed: ${authError}`);
         return;
       }
 
@@ -71,7 +72,7 @@ export function AuthCallback() {
           }
         }, 1500);
       } catch (err) {
-        console.error('Auth error:', err);
+        error('Auth error:', err);
         setStatus('error');
         setMessage('Failed to complete authentication. Please try again.');
       }
