@@ -8,6 +8,7 @@ interface AppState {
   addItem: (item: Omit<QueueItem, 'id' | 'timestamp' | 'status'>) => void;
   removeItem: (id: string) => void;
   updateItemStatus: (id: string, status: QueueItem['status']) => void;
+  markItemPlayed: (id: string) => void;
   clearPlayed: () => void;
   
   // Settings
@@ -61,6 +62,13 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           queue: state.queue.map((item) =>
             item.id === id ? { ...item, status } : item
+          ),
+        })),
+      
+      markItemPlayed: (id) =>
+        set((state) => ({
+          queue: state.queue.map((item) =>
+            item.id === id ? { ...item, status: 'played' as const } : item
           ),
         })),
       

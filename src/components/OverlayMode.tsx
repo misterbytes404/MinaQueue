@@ -57,6 +57,8 @@ export function OverlayMode() {
   
   const lastPlayingId = useRef<string | null>(null);
   const lastCompletedTime = useRef<number>(0);
+  const scheduledItemId = useRef<string | null>(null); // Track which item we're scheduling
+  const playedItemIds = useRef<Set<string>>(new Set()); // Track items we've already played
   const DELAY_BETWEEN_ALERTS = 2000; // 2 seconds between alerts
 
   // Handle incoming WebSocket messages
@@ -69,7 +71,19 @@ export function OverlayMode() {
         break;
         
       case 'queue':
-        setState(prev => ({ ...prev, queue: message.queue }));
+        // Dashboard is source of truth for queue - just accept it
+        // But preserve any 'playing' item until dashboard confirms it's 'played'
+        setState(prev => {
+          const currentPlayingId = prev.queue.find(i => i.status === 'playing')?.id;
+          const newQueue = message.queue.map(item => {
+            // If this was our playing item and dashboard still has it as pending/playing, keep it playing
+            if (item.id === currentPlayingId && item.status === 'pending') {
+              return { ...item, status: 'playing' as const };
+            }
+            return item;
+          });
+          return { ...prev, queue: newQueue };
+        });
         break;
         
       case 'settings':
@@ -77,11 +91,20 @@ export function OverlayMode() {
         break;
         
       case 'state':
-        setState(prev => ({ 
-          ...prev, 
-          gateOpen: message.gateOpen,
-          queue: message.queue,
-        }));
+        setState(prev => {
+          const currentPlayingId = prev.queue.find(i => i.status === 'playing')?.id;
+          const newQueue = message.queue.map(item => {
+            if (item.id === currentPlayingId && item.status === 'pending') {
+              return { ...item, status: 'playing' as const };
+            }
+            return item;
+          });
+          return { 
+            ...prev, 
+            gateOpen: message.gateOpen,
+            queue: newQueue,
+          };
+        });
         if (message.settings) {
           setOverlaySettings(message.settings);
         }
@@ -91,6 +114,7 @@ export function OverlayMode() {
         window.speechSynthesis.cancel();
         setTtsFinished(true);
         lastCompletedTime.current = Date.now();
+        scheduledItemId.current = null;
         setState(prev => ({
           ...prev,
           queue: prev.queue.map(item => 
@@ -126,7 +150,7 @@ export function OverlayMode() {
     }
   }, []);
 
-  const { isConnected, sendGate, sendSkip, sendClear } = useOverlayWS({
+  const { isConnected, sendGate, sendSkip, sendClear, sendPlayed } = useOverlayWS({
     clientType: 'overlay',
     onMessage: handleMessage,
   });
@@ -176,16 +200,42 @@ export function OverlayMode() {
   
   // Auto-start next pending item when gate is open (with 2 second delay)
   useEffect(() => {
-    if (!state.gateOpen || playingItem || !nextPendingItem) return;
+    // Don't do anything if gate is closed, something is playing, or nothing pending
+    if (!state.gateOpen || playingItem || !nextPendingItem) {
+      return;
+    }
     
+    // Don't re-schedule if we already scheduled this exact item
+    if (scheduledItemId.current === nextPendingItem.id) {
+      return;
+    }
+    
+    // Don't schedule items we've already played TTS for
+    if (playedItemIds.current.has(nextPendingItem.id)) {
+      console.log('[Overlay] Skipping already-played item:', nextPendingItem.id);
+      // Mark it as played in local state
+      setState(prev => ({
+        ...prev,
+        queue: prev.queue.map(item => 
+          item.id === nextPendingItem.id ? { ...item, status: 'played' as const } : item
+        ),
+      }));
+      sendPlayed(nextPendingItem.id);
+      return;
+    }
+    
+    // Calculate delay
     const timeSinceLastCompleted = Date.now() - lastCompletedTime.current;
-    const delayNeeded = Math.max(100, DELAY_BETWEEN_ALERTS - timeSinceLastCompleted);
+    const delayNeeded = lastCompletedTime.current === 0 
+      ? 100  // No delay for first alert
+      : Math.max(100, DELAY_BETWEEN_ALERTS - timeSinceLastCompleted);
     
-    console.log('[Overlay] Scheduling next alert in', delayNeeded, 'ms');
+    console.log('[Overlay] Scheduling next alert in', delayNeeded, 'ms:', nextPendingItem.username, '(id:', nextPendingItem.id, ')');
+    scheduledItemId.current = nextPendingItem.id;
     
     const timeoutId = setTimeout(() => {
       console.log('[Overlay] Auto-starting:', nextPendingItem.username);
-      setTtsFinished(false); // TTS starting
+      setTtsFinished(false);
       setState(prev => ({
         ...prev,
         queue: prev.queue.map(item => 
@@ -194,8 +244,11 @@ export function OverlayMode() {
       }));
     }, delayNeeded);
     
-    return () => clearTimeout(timeoutId);
-  }, [state.gateOpen, playingItem, nextPendingItem]);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.gateOpen, playingItem?.id, nextPendingItem?.id, sendPlayed]);
 
   // TTS - play when item starts playing
   useEffect(() => {
@@ -203,31 +256,44 @@ export function OverlayMode() {
       return;
     }
     
-    // Only play if this is a new item
-    if (lastPlayingId.current === playingItem.id) {
+    // Only play if this is a new item we haven't played before
+    if (lastPlayingId.current === playingItem.id || playedItemIds.current.has(playingItem.id)) {
       return;
     }
     
     console.log('[Overlay] Playing TTS for:', playingItem.username);
     lastPlayingId.current = playingItem.id;
+    playedItemIds.current.add(playingItem.id); // Mark as played
     
     const synth = window.speechSynthesis;
     synth.cancel(); // Cancel any previous speech
     
     if (volume > 0 && playingItem.message) {
+      // Speak only the message body. Do NOT read the username or the amounts (cheers/bits).
       const utterance = new SpeechSynthesisUtterance(
-        `${playingItem.username} says: ${playingItem.message}`
+        `${playingItem.message}`
       );
       utterance.volume = volume;
       
-      // Mark TTS as finished when it completes
+      // Mark TTS as finished when it completes — record completion time
       utterance.onend = () => {
         console.log('[Overlay] TTS finished');
+        // Record actual TTS completion time to enforce post-TTS delay
+        lastCompletedTime.current = Date.now();
         setTtsFinished(true);
+        // Notify dashboard immediately that item has finished speaking
+        if (playingItem?.id) {
+          try {
+            sendPlayed(playingItem.id);
+          } catch (e) {
+            console.warn('[Overlay] sendPlayed failed on utterance end', e);
+          }
+        }
       };
       
       utterance.onerror = () => {
         console.log('[Overlay] TTS error');
+        lastCompletedTime.current = Date.now();
         setTtsFinished(true);
       };
       
@@ -247,20 +313,32 @@ export function OverlayMode() {
     }
   }, [state.gateOpen]);
 
-  // Mark alert complete
+  // Mark alert complete and notify dashboard
   const handleAlertComplete = useCallback(() => {
-    console.log('[Overlay] Alert complete');
-    window.speechSynthesis.cancel();
+    const currentPlaying = state.queue.find(item => item.status === 'playing');
+    console.log('[Overlay] Alert complete:', currentPlaying?.id);
+    
+    // Do NOT cancel speech here — TTS should have finished already.
     setTtsFinished(true);
-    lastCompletedTime.current = Date.now();
-    setState(prev => ({
-      ...prev,
-      queue: prev.queue.map(item => 
-        item.status === 'playing' ? { ...item, status: 'played' as const } : item
-      ),
-    }));
+    scheduledItemId.current = null;
+    
+    if (currentPlaying) {
+      // Mark locally and notify dashboard (might be redundant if we already sent on utterance end)
+      setState(prev => ({
+        ...prev,
+        queue: prev.queue.map(item => 
+          item.id === currentPlaying.id ? { ...item, status: 'played' as const } : item
+        ),
+      }));
+      try {
+        sendPlayed(currentPlaying.id);
+      } catch (e) {
+        console.warn('[Overlay] sendPlayed failed on alert complete', e);
+      }
+    }
+    
     lastPlayingId.current = null;
-  }, []);
+  }, [state.queue, sendPlayed]);
 
   // Only show alert if gate is open
   const visibleItem = state.gateOpen && playingItem ? playingItem : null;
@@ -271,6 +349,8 @@ export function OverlayMode() {
         item={visibleItem} 
         onAlertComplete={handleAlertComplete}
         settings={overlaySettings}
+        waitForTTS={true}
+        ttsFinished={ttsFinished}
       />
       
       {showDebug && (

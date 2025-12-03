@@ -50,12 +50,10 @@ export function GateControl() {
     ];
     
     addItem({
-      id: `test-${Date.now()}`,
       username: 'TestUser',
       message: testMessages[Math.floor(Math.random() * testMessages.length)],
       amount: 100,
-      timestamp: Date.now(),
-      status: 'pending',
+      type: 'bits',
     });
   };
 

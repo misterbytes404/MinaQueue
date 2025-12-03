@@ -10,7 +10,7 @@ import { OverlayMode } from './components/OverlayMode';
 import { OverlaySettingsPage } from './components/OverlaySettingsPage';
 import { useTTSQueue } from './hooks/useTTSQueue';
 import { useAppStore } from './store/useAppStore';
-import { useOverlayWS } from './hooks/useOverlayWS';
+import { useOverlayWS, type WSMessageType } from './hooks/useOverlayWS';
 import { streamElementsService } from './services/streamelements';
 import { streamLabsService } from './services/streamlabs';
 
@@ -22,6 +22,7 @@ function App() {
     addItem, 
     settings,
     queue,
+    markItemPlayed,
   } = useAppStore();
   const hasAttemptedReconnect = useRef(false);
   
@@ -37,6 +38,14 @@ function App() {
   // WebSocket connection to overlay server (only for dashboard, not overlay)
   const shouldConnectWS = !isOverlayMode && !isAuthCallback && !isOverlaySettings;
   
+  // Handle messages from overlay (e.g., when an alert finishes playing)
+  const handleWSMessage = useCallback((message: WSMessageType) => {
+    if (message.type === 'played') {
+      console.log('[Dashboard] Overlay finished playing:', message.itemId);
+      markItemPlayed(message.itemId);
+    }
+  }, [markItemPlayed]);
+  
   const handleWSConnect = useCallback(() => {
     console.log('[Dashboard] Connected to overlay server');
   }, []);
@@ -44,6 +53,7 @@ function App() {
   const { isConnected: wsConnected, sendQueue, sendGate, sendSettings, sendPlay } = useOverlayWS({
     clientType: 'dashboard',
     onConnect: shouldConnectWS ? handleWSConnect : undefined,
+    onMessage: shouldConnectWS ? handleWSMessage : undefined,
   });
 
   // Broadcast queue changes to overlay

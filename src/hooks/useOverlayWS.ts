@@ -11,6 +11,7 @@ export type WSMessageType =
   | { type: 'skip' }
   | { type: 'clear' }
   | { type: 'play'; itemId: string }
+  | { type: 'played'; itemId: string }  // Overlay tells dashboard an item finished
   | { type: 'alert'; item: QueueItem }
   | { type: 'state'; gateOpen: boolean; queue: QueueItem[]; settings: OverlaySettings };
 
@@ -134,6 +135,10 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
     send({ type: 'play', itemId });
   }, [send]);
 
+  const sendPlayed = useCallback((itemId: string) => {
+    send({ type: 'played', itemId });
+  }, [send]);
+
   const sendAlert = useCallback((item: QueueItem) => {
     send({ type: 'alert', item });
   }, [send]);
@@ -156,6 +161,7 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
     sendSkip,
     sendClear,
     sendPlay,
+    sendPlayed,
     sendAlert,
     sendState,
     connect,

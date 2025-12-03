@@ -6,7 +6,7 @@
  * - OBS Overlay (overlay client) - receives updates and displays alerts
  * 
  * Messages:
- * Dashboard -> Server:
+ * Dashboard -> Server -> Overlay:
  *   - { type: 'gate', isOpen: boolean }
  *   - { type: 'queue', queue: QueueItem[] }
  *   - { type: 'settings', settings: OverlaySettings }
@@ -14,9 +14,11 @@
  *   - { type: 'clear' }
  *   - { type: 'play', itemId: string }
  * 
- * Server -> Overlay:
- *   - All of the above, forwarded
- *   - { type: 'connected' }
+ * Overlay -> Server -> Dashboard:
+ *   - { type: 'played', itemId: string } - Alert finished playing
+ * 
+ * Server -> New Client:
+ *   - { type: 'state', gateOpen, queue, settings }
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
@@ -31,7 +33,7 @@ interface Client {
 const clients: Client[] = [];
 
 // Current state (so new overlay clients get current state)
-let currentState = {
+const currentState = {
   gateOpen: true,
   queue: [] as unknown[],
   settings: {} as Record<string, unknown>,

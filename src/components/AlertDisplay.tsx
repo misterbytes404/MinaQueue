@@ -7,46 +7,73 @@ interface AlertDisplayProps {
   settings: OverlaySettings;
   /** If true, clicking the alert will close it (for preview mode) */
   clickToClose?: boolean;
+  /** If true, wait for TTS to finish before completing */
+  waitForTTS?: boolean;
+  /** Signal that TTS has finished (only used when waitForTTS is true) */
+  ttsFinished?: boolean;
 }
 
 type DisplayState = 'hidden' | 'visible' | 'exiting';
 
 /**
  * OBS Browser Source Alert Display
- * Shows the current playing alert with customizable styling
+ * Shows the current playing alert with customizable styling.
+ * 
+ * When waitForTTS is true, the alert will stay visible until BOTH:
+ * 1. The minimum display time has elapsed
+ * 2. TTS has finished (ttsFinished becomes true)
  */
-export function AlertDisplay({ item, onAlertComplete, settings, clickToClose = false }: AlertDisplayProps) {
+export function AlertDisplay({ 
+  item, 
+  onAlertComplete, 
+  settings, 
+  clickToClose = false, 
+  waitForTTS = false, 
+  ttsFinished = true 
+}: AlertDisplayProps) {
   const [displayState, setDisplayState] = useState<DisplayState>('hidden');
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
   const currentItemRef = useRef<string | null>(null);
-  const timersRef = useRef<{ exit?: number; complete?: number }>({});
+  const minTimeTimerRef = useRef<number | null>(null);
   
   const clearTimers = useCallback(() => {
-    if (timersRef.current.exit) {
-      clearTimeout(timersRef.current.exit);
-      timersRef.current.exit = undefined;
-    }
-    if (timersRef.current.complete) {
-      clearTimeout(timersRef.current.complete);
-      timersRef.current.complete = undefined;
+    if (minTimeTimerRef.current) {
+      clearTimeout(minTimeTimerRef.current);
+      minTimeTimerRef.current = null;
     }
   }, []);
+
+  // Complete the alert (start exit animation then hide)
+  const completeAlert = useCallback(() => {
+    console.log('[AlertDisplay] Completing alert');
+    setDisplayState('exiting');
+    
+    // After exit animation, hide and notify parent
+    setTimeout(() => {
+      setDisplayState('hidden');
+      currentItemRef.current = null;
+      setMinTimeElapsed(false);
+      onAlertComplete();
+    }, 500);
+  }, [onAlertComplete]);
 
   const handleClick = useCallback(() => {
     if (clickToClose) {
       clearTimers();
-      setDisplayState('hidden');
-      currentItemRef.current = null;
-      onAlertComplete();
+      completeAlert();
     }
-  }, [clickToClose, clearTimers, onAlertComplete]);
+  }, [clickToClose, clearTimers, completeAlert]);
 
-  // Handle item changes
+  // Handle item changes - show new items
   useEffect(() => {
     // Item was removed or changed to non-playing - hide immediately
     if (!item || item.status !== 'playing') {
       clearTimers();
-      setDisplayState('hidden');
-      currentItemRef.current = null;
+      if (displayState !== 'hidden') {
+        setDisplayState('hidden');
+        currentItemRef.current = null;
+        setMinTimeElapsed(false);
+      }
       return;
     }
     
@@ -56,28 +83,39 @@ export function AlertDisplay({ item, onAlertComplete, settings, clickToClose = f
     }
     
     // New item to show
+    console.log('[AlertDisplay] Showing new alert:', item.username);
     currentItemRef.current = item.id;
     clearTimers();
     setDisplayState('visible');
+    setMinTimeElapsed(false);
 
-    // Use configured duration, add extra time for longer messages
-    const messageBonus = item.message ? Math.min(item.message.length * 50, 5000) : 0;
-    const displayTime = settings.alertDuration + messageBonus;
-
-    // Start exit animation before completing
-    timersRef.current.exit = window.setTimeout(() => {
-      setDisplayState('exiting');
-    }, displayTime - 500);
-
-    // Complete alert
-    timersRef.current.complete = window.setTimeout(() => {
-      setDisplayState('hidden');
-      currentItemRef.current = null;
-      onAlertComplete();
-    }, displayTime);
+    // Calculate minimum display time
+    const minDisplayTime = settings.alertDuration;
+    
+    // Set timer for minimum display time
+    minTimeTimerRef.current = window.setTimeout(() => {
+      console.log('[AlertDisplay] Min time elapsed');
+      setMinTimeElapsed(true);
+    }, minDisplayTime);
     
     return clearTimers;
-  }, [item?.id, item?.status, onAlertComplete, clearTimers, settings.alertDuration]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id, item?.status, clearTimers, settings.alertDuration]);
+
+  // Check if we should complete the alert
+  // Complete when: min time elapsed AND (not waiting for TTS OR TTS finished)
+  useEffect(() => {
+    if (displayState !== 'visible') return;
+    if (!minTimeElapsed) return;
+    
+    if (waitForTTS && !ttsFinished) {
+      console.log('[AlertDisplay] Waiting for TTS to finish...');
+      return;
+    }
+    
+    console.log('[AlertDisplay] Ready to complete (minTime:', minTimeElapsed, 'ttsFinished:', ttsFinished, ')');
+    completeAlert();
+  }, [displayState, minTimeElapsed, waitForTTS, ttsFinished, completeAlert]);
 
   // Cleanup on unmount
   useEffect(() => {
