@@ -53,8 +53,11 @@ export function OverlayMode() {
   });
   const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>(defaultOverlaySettings);
   const [volume] = useState(1);
+  const [ttsFinished, setTtsFinished] = useState(true); // Track if TTS has finished
   
   const lastPlayingId = useRef<string | null>(null);
+  const lastCompletedTime = useRef<number>(0);
+  const DELAY_BETWEEN_ALERTS = 2000; // 2 seconds between alerts
 
   // Handle incoming WebSocket messages
   const handleMessage = useCallback((message: WSMessageType) => {
@@ -86,6 +89,8 @@ export function OverlayMode() {
         
       case 'skip':
         window.speechSynthesis.cancel();
+        setTtsFinished(true);
+        lastCompletedTime.current = Date.now();
         setState(prev => ({
           ...prev,
           queue: prev.queue.map(item => 
@@ -169,17 +174,27 @@ export function OverlayMode() {
   const playingItem = state.queue.find(item => item.status === 'playing');
   const nextPendingItem = state.queue.find(item => item.status === 'pending');
   
-  // Auto-start next pending item when gate is open
+  // Auto-start next pending item when gate is open (with 2 second delay)
   useEffect(() => {
     if (!state.gateOpen || playingItem || !nextPendingItem) return;
     
-    console.log('[Overlay] Auto-starting:', nextPendingItem.username);
-    setState(prev => ({
-      ...prev,
-      queue: prev.queue.map(item => 
-        item.id === nextPendingItem.id ? { ...item, status: 'playing' as const } : item
-      ),
-    }));
+    const timeSinceLastCompleted = Date.now() - lastCompletedTime.current;
+    const delayNeeded = Math.max(100, DELAY_BETWEEN_ALERTS - timeSinceLastCompleted);
+    
+    console.log('[Overlay] Scheduling next alert in', delayNeeded, 'ms');
+    
+    const timeoutId = setTimeout(() => {
+      console.log('[Overlay] Auto-starting:', nextPendingItem.username);
+      setTtsFinished(false); // TTS starting
+      setState(prev => ({
+        ...prev,
+        queue: prev.queue.map(item => 
+          item.id === nextPendingItem.id ? { ...item, status: 'playing' as const } : item
+        ),
+      }));
+    }, delayNeeded);
+    
+    return () => clearTimeout(timeoutId);
   }, [state.gateOpen, playingItem, nextPendingItem]);
 
   // TTS - play when item starts playing
@@ -204,7 +219,22 @@ export function OverlayMode() {
         `${playingItem.username} says: ${playingItem.message}`
       );
       utterance.volume = volume;
+      
+      // Mark TTS as finished when it completes
+      utterance.onend = () => {
+        console.log('[Overlay] TTS finished');
+        setTtsFinished(true);
+      };
+      
+      utterance.onerror = () => {
+        console.log('[Overlay] TTS error');
+        setTtsFinished(true);
+      };
+      
       synth.speak(utterance);
+    } else {
+      // No message to speak, mark as finished immediately
+      setTtsFinished(true);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playingItem?.id, state.gateOpen]);
@@ -213,6 +243,7 @@ export function OverlayMode() {
   useEffect(() => {
     if (!state.gateOpen) {
       window.speechSynthesis.cancel();
+      setTtsFinished(true);
     }
   }, [state.gateOpen]);
 
@@ -220,6 +251,8 @@ export function OverlayMode() {
   const handleAlertComplete = useCallback(() => {
     console.log('[Overlay] Alert complete');
     window.speechSynthesis.cancel();
+    setTtsFinished(true);
+    lastCompletedTime.current = Date.now();
     setState(prev => ({
       ...prev,
       queue: prev.queue.map(item => 
@@ -244,6 +277,7 @@ export function OverlayMode() {
         <div className="fixed bottom-4 left-4 text-xs text-white bg-black/80 px-3 py-2 rounded font-mono space-y-1">
           <div>WS: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}</div>
           <div>Gate: {state.gateOpen ? '🔓 OPEN' : '🔒 CLOSED'} <span className="text-gray-400">(press G)</span></div>
+          <div>TTS: {ttsFinished ? '✅ Ready' : '🔊 Speaking'}</div>
           <div>Pending: {state.queue.filter(q => q.status === 'pending').length}</div>
           <div>Playing: {playingItem ? playingItem.username : 'none'} <span className="text-gray-400">(S=skip)</span></div>
           <div className="text-gray-500 text-[10px] mt-2">C=clear all pending</div>
