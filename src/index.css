@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/* Custom Minaqueue Theme - Cute Underworld / Hellhound */
+@theme {
+  --color-bg-void: #1A1025;
+  --color-cerber-violet: #B766D6;
+  --color-bone-white: #F5E6D3;
+  --color-squeaky-pink: #FF99CC;
+  --color-hellfire-red: #FF4D4D;
+  
+  /* Custom animations */
+  --animate-alert-bounce: alert-bounce 0.5s ease-out;
+  --animate-alert-pulse: alert-pulse 2s ease-in-out infinite;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-bg-void);
+  color: var(--color-bone-white);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* Transparent background for OBS overlay mode */
+body.overlay-mode {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+body.overlay-mode #root {
+  background: transparent !important;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Alert animations */
+@keyframes alert-bounce {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(-50px);
+  }
+  50% {
+    transform: scale(1.05) translateY(0);
+  }
+  70% {
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes alert-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(183, 102, 214, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(183, 102, 214, 0.8);
+  }
+}
+
+.animate-alert-bounce {
+  animation: alert-bounce 0.5s ease-out;
+}
+
+.animate-alert-pulse {
+  animation: alert-pulse 2s ease-in-out infinite;
+}

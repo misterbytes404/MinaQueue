@@ -1,0 +1,168 @@
+/**
+ * StreamElements API Service
+ * Handles JWT auth, Socket connection, and Alert control
+ */
+
+import { io, Socket } from 'socket.io-client';
+import type { StreamElementsEvent, QueueItem } from '../types';
+
+// StreamElements Configuration
+// Get your JWT token from StreamElements dashboard: https://streamelements.com/dashboard/account/channels
+const STREAMELEMENTS_SOCKET_URL = 'https://realtime.streamelements.com';
+
+export class StreamElementsService {
+  private socket: Socket | null = null;
+  private onEventCallback: ((item: Omit<QueueItem, 'id' | 'timestamp' | 'status'>) => void) | null = null;
+  private isConnecting = false;
+
+  /**
+   * Connect using JWT token from StreamElements dashboard
+   * Users can find this at: https://streamelements.com/dashboard/account/channels
+   */
+  connectWithToken(
+    jwtToken: string,
+    onEvent: (item: Omit<QueueItem, 'id' | 'timestamp' | 'status'>) => void,
+    onConnectionChange: (connected: boolean) => void
+  ): void {
+    // Prevent duplicate connections
+    if (this.socket || this.isConnecting) {
+      console.log('[StreamElements] Already connected or connecting, skipping');
+      return;
+    }
+    
+    this.isConnecting = true;
+    this.onEventCallback = onEvent;
+
+    this.socket = io(STREAMELEMENTS_SOCKET_URL, {
+      transports: ['websocket'],
+    });
+
+    this.socket.on('connect', () => {
+      console.log('[StreamElements] Socket connected');
+      // Authenticate with JWT
+      this.socket?.emit('authenticate', { method: 'jwt', token: jwtToken });
+    });
+
+    this.socket.on('authenticated', () => {
+      console.log('[StreamElements] Authenticated successfully');
+      this.isConnecting = false;
+      onConnectionChange(true);
+    });
+
+    this.socket.on('disconnect', () => {
+      console.log('[StreamElements] Socket disconnected');
+      this.isConnecting = false;
+      onConnectionChange(false);
+    });
+
+    this.socket.on('unauthorized', (error: unknown) => {
+      console.error('[StreamElements] Authentication failed:', error);
+      this.isConnecting = false;
+      onConnectionChange(false);
+    });
+
+    // Listen for events
+    this.socket.on('event', (event: StreamElementsEvent) => {
+      this.handleEvent(event);
+    });
+
+    this.socket.on('event:test', (event: StreamElementsEvent) => {
+      // Test events for debugging
+      this.handleEvent(event);
+    });
+  }
+
+  /**
+   * Handle incoming StreamElements events
+   */
+  private handleEvent(event: StreamElementsEvent): void {
+    if (!this.onEventCallback) return;
+
+    // Handle tips (donations) and cheers (bits)
+    if (event.type === 'tip' || event.type === 'cheer') {
+      this.onEventCallback({
+        username: event.data.displayName || event.data.username,
+        amount: event.data.amount,
+        message: event.data.message || '',
+        type: event.type === 'cheer' ? 'bits' : 'donation',
+      });
+    }
+  }
+
+  /**
+   * Mute/Pause alerts via overlay control
+   * Note: StreamElements uses a different approach - you control the overlay widget
+   */
+  async pauseAlerts(): Promise<void> {
+    // StreamElements doesn't have a direct API endpoint like StreamLabs
+    // Instead, you can use their activity feed widget controls
+    // or send a custom event to your overlay
+    if (this.socket) {
+      this.socket.emit('overlay:mute', { muted: true });
+    }
+  }
+
+  /**
+   * Unmute/Resume alerts
+   */
+  async unpauseAlerts(): Promise<void> {
+    if (this.socket) {
+      this.socket.emit('overlay:mute', { muted: false });
+    }
+  }
+
+  /**
+   * Skip current alert
+   */
+  async skipAlert(): Promise<void> {
+    if (this.socket) {
+      this.socket.emit('overlay:skip');
+    }
+  }
+
+  /**
+   * Validate JWT token by attempting connection
+   */
+  async validateToken(token: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const testSocket = io(STREAMELEMENTS_SOCKET_URL, {
+        transports: ['websocket'],
+      });
+
+      const timeout = setTimeout(() => {
+        testSocket.disconnect();
+        resolve(false);
+      }, 5000);
+
+      testSocket.on('connect', () => {
+        testSocket.emit('authenticate', { method: 'jwt', token });
+      });
+
+      testSocket.on('authenticated', () => {
+        clearTimeout(timeout);
+        testSocket.disconnect();
+        resolve(true);
+      });
+
+      testSocket.on('unauthorized', () => {
+        clearTimeout(timeout);
+        testSocket.disconnect();
+        resolve(false);
+      });
+    });
+  }
+
+  /**
+   * Disconnect socket
+   */
+  disconnect(): void {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+    this.onEventCallback = null;
+  }
+}
+
+// Singleton instance
+export const streamElementsService = new StreamElementsService();
