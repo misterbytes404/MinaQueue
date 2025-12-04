@@ -31,10 +31,6 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       params.set('provider', providerConnection.provider);
       params.set('token', providerConnection.accessToken);
       
-      // StreamLabs needs socket token too
-      if (providerConnection.provider === 'streamlabs' && providerConnection.socketToken) {
-        params.set('socket', providerConnection.socketToken);
-      }
     }
     
     // Add settings
@@ -139,7 +135,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </p>
             {providerConnection.provider === 'none' && (
               <p className="text-xs text-yellow-400/80 mt-1">
-                ⚠️ Connect to StreamElements or StreamLabs first for a complete URL.
+                ⚠️ Connect to StreamElements first for a complete URL.
               </p>
             )}
             <button
@@ -197,7 +193,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <span className="text-sm text-bone-white">
                   Connected to{' '}
                   <span className="text-cerber-violet font-semibold">
-                    {providerConnection.provider === 'streamlabs' ? 'StreamLabs' : 'StreamElements'}
+                    StreamElements
                   </span>
                   {providerConnection.username && ` as ${providerConnection.username}`}
                 </span>

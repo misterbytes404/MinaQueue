@@ -6,13 +6,11 @@ import { QueueList } from './components/QueueList';
 import { Footer } from './components/Footer';
 import { SettingsModal } from './components/SettingsModal';
 import { ProviderSetup } from './components/ProviderSetup';
-import { AuthCallback } from './components/AuthCallback';
 import { OverlayMode } from './components/OverlayMode';
 import { OverlaySettingsPage } from './components/OverlaySettingsPage';
 import { useAppStore } from './store/useAppStore';
 import { useOverlayWS, type WSMessageType } from './hooks/useOverlayWS';
 import { streamElementsService } from './services/streamelements';
-import { streamLabsService } from './services/streamlabs';
 
 function App() {
   const [showSettings, setShowSettings] = useState(false);
@@ -29,12 +27,11 @@ function App() {
   
   // Simple routing based on pathname
   const pathname = window.location.pathname;
-  const isAuthCallback = pathname.includes('/auth/');
   const isOverlayMode = pathname === '/overlay';
   const isOverlaySettings = pathname.includes('/overlay-settings');
   
   // WebSocket connection to overlay server (only for dashboard and settings page, not overlay)
-  const shouldConnectWS = !isOverlayMode && !isAuthCallback;
+  const shouldConnectWS = !isOverlayMode;
   
   // Handle messages from overlay (e.g., when an alert finishes playing)
   const handleWSMessage = useCallback((message: WSMessageType) => {
@@ -98,12 +95,12 @@ function App() {
 
   // Auto-reconnect to provider if we have stored credentials
   useEffect(() => {
-    if (hasAttemptedReconnect.current || isOverlayMode || isAuthCallback) return;
+    if (hasAttemptedReconnect.current || isOverlayMode) return;
     if (!providerConnection.accessToken) return;
     
     hasAttemptedReconnect.current = true;
     
-    info('[Dashboard] Reconnecting to', providerConnection.provider);
+    info('[Dashboard] Reconnecting to StreamElements');
     
     if (providerConnection.provider === 'streamelements') {
       streamElementsService.connectWithToken(
@@ -119,40 +116,8 @@ function App() {
           setProviderConnection({ isConnected: connected });
         }
       );
-    } else if (providerConnection.provider === 'streamlabs' && providerConnection.socketToken) {
-      streamLabsService.setAccessToken(providerConnection.accessToken);
-      streamLabsService.connectSocket(
-        providerConnection.socketToken,
-        (item) => {
-          if (item.amount >= settings.minBits) {
-            addItem(item);
-          }
-        },
-        (connected) => {
-          info('[Dashboard] StreamLabs:', connected ? 'connected' : 'disconnected');
-          setConnectionStatus(connected ? 'connected' : 'disconnected');
-          setProviderConnection({ isConnected: connected });
-        }
-      );
     }
-  }, [providerConnection.accessToken, providerConnection.provider, providerConnection.socketToken, settings.minBits, addItem, setConnectionStatus, setProviderConnection, isOverlayMode, isAuthCallback]);
-
-  // Listen for OAuth popup completion
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'STREAMLABS_AUTH_SUCCESS') {
-        window.location.reload();
-      }
-    };
-    
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
-
-  // Render OAuth callback page
-  if (isAuthCallback) {
-    return <AuthCallback />;
-  }
+  }, [providerConnection.accessToken, providerConnection.provider, settings.minBits, addItem, setConnectionStatus, setProviderConnection, isOverlayMode]);
 
   // Render OBS Overlay mode
   if (isOverlayMode) {
@@ -173,8 +138,8 @@ function App() {
         <div className="flex justify-center gap-4 py-2 text-xs">
           <span className={providerConnection.isConnected ? 'text-green-400' : 'text-red-400'}>
             {providerConnection.isConnected 
-              ? `● ${providerConnection.provider === 'streamlabs' ? 'StreamLabs' : 'StreamElements'}` 
-              : `○ ${providerConnection.provider !== 'none' ? (providerConnection.provider === 'streamlabs' ? 'StreamLabs' : 'StreamElements') : 'No Provider'}`
+              ? '● StreamElements' 
+              : '○ Not Connected'
             }
           </span>
           <span className={wsConnected ? 'text-green-400' : 'text-yellow-400'}>

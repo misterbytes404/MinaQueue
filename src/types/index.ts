@@ -10,7 +10,7 @@ export interface QueueItem {
 }
 
 // Alert Provider Types
-export type AlertProvider = 'streamlabs' | 'streamelements' | 'none';
+export type AlertProvider = 'streamelements' | 'none';
 
 // Provider Connection State
 export interface ProviderConnection {
@@ -59,18 +59,6 @@ export interface AppSettings {
 
 // Connection status
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
-
-// StreamLabs Event Types
-export interface StreamLabsEvent {
-  type: 'donation' | 'bits' | 'subscription' | 'follow';
-  message: Array<{
-    id: string;
-    name: string;
-    amount: string | number;
-    message: string;
-    formatted_amount?: string;
-  }>;
-}
 
 // StreamElements Event Types  
 export interface StreamElementsEvent {

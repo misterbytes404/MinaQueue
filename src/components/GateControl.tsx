@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { error } from '../lib/logger';
 import { Loader2, FlaskConical } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
-import { streamLabsService } from '../services/streamlabs';
 import { streamElementsService } from '../services/streamelements';
 
 export function GateControl() {
@@ -14,20 +13,12 @@ export function GateControl() {
     setIsLoading(true);
     
     try {
-      // Control the provider's alert queue if connected
-      if (providerConnection.isConnected) {
-        if (providerConnection.provider === 'streamlabs') {
-          if (isOpen) {
-            await streamLabsService.pauseQueue();
-          } else {
-            await streamLabsService.unpauseQueue();
-          }
-        } else if (providerConnection.provider === 'streamelements') {
-          if (isOpen) {
-            await streamElementsService.pauseAlerts();
-          } else {
-            await streamElementsService.unpauseAlerts();
-          }
+      // Control StreamElements alert queue if connected
+      if (providerConnection.isConnected && providerConnection.provider === 'streamelements') {
+        if (isOpen) {
+          await streamElementsService.pauseAlerts();
+        } else {
+          await streamElementsService.unpauseAlerts();
         }
       }
       
@@ -93,8 +84,8 @@ export function GateControl() {
       <p className="text-sm text-bone-white/60">
         {providerConnection.isConnected ? (
           isOpen 
-            ? `${providerConnection.provider === 'streamlabs' ? 'StreamLabs' : 'StreamElements'} alerts playing` 
-            : `${providerConnection.provider === 'streamlabs' ? 'StreamLabs' : 'StreamElements'} alerts paused`
+            ? 'StreamElements alerts playing' 
+            : 'StreamElements alerts paused'
         ) : (
           isOpen 
             ? 'Messages will auto-play' 
