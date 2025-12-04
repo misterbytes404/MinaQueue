@@ -299,7 +299,7 @@ Every time you want to stream with MinaQueue:
 
 ## 💜 Credits
 
-Made by **BytesWan | Coder Minawan**
+Made by **BytesWan | Coder Minawan** 🩷🩷
 
 ---
 
