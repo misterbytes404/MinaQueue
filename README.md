@@ -297,6 +297,14 @@ Every time you want to stream with MinaQueue:
 
 ---
 
+## 🐛 Known Bugs
+
+| Bug | Workaround |
+|-----|------------|
+| Custom alert image (GIF) doesn't persist after restart | Re-upload the image in Overlay Settings after starting the app |
+
+---
+
 ## 💜 Credits
 
 Made by **BytesWan | Coder Minawan** 🩷🩷
