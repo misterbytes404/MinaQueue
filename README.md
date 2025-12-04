@@ -20,14 +20,14 @@ Ever get a loud TTS alert right in the middle of an emotional cutscene? MinaQueu
 
 There are **two ways** to use MinaQueue:
 
-| Option | Best For | Difficulty |
-|--------|----------|------------|
-| **☁️ Hosted Version** | Just want it to work! | ⭐ Easy |
-| **💻 Local Setup** | Want to run it yourself | ⭐⭐⭐ Moderate |
+| Option |  Difficulty |
+|--------|------------|
+| **☁️ Hosted Version** | ⭐ Easy |
+| **💻 Local Setup** |  ⭐⭐⭐ Moderate |
 
 ---
 
-## ☁️ Option A: Hosted Version (Easiest!)
+## ☁️ Option A: Hosted Version (See Dev Notes Below for Hosting Instructions)
 
 If someone is hosting MinaQueue for you (like a friend or tech person), you just need:
 
