@@ -131,28 +131,28 @@ export class StreamLabsService {
 
   /**
    * Handle incoming StreamLabs events
+   * Only processes bits events - donations and other alerts are handled by StreamLabs natively
    */
   private handleEvent(event: StreamLabsEvent): void {
     if (!this.onEventCallback) return;
 
-    // Handle bits and donations
-    if (event.type === 'bits' || event.type === 'donation') {
+    // Only handle bits - let StreamLabs handle donations, subs, follows, etc.
+    if (event.type === 'bits') {
       for (const msg of event.message) {
         const amount = typeof msg.amount === 'string' ? parseFloat(msg.amount) : msg.amount;
         
-        // For bits, strip the cheer emotes from the message so TTS doesn't read them
-        const cleanMessage = event.type === 'bits'
-          ? stripCheerEmotes(msg.message || '')
-          : (msg.message || '');
+        // Strip the cheer emotes from the message so TTS doesn't read them
+        const cleanMessage = stripCheerEmotes(msg.message || '');
         
         this.onEventCallback({
           username: msg.name,
           amount: amount,
           message: cleanMessage,
-          type: event.type === 'bits' ? 'bits' : 'donation',
+          type: 'bits',
         });
       }
     }
+    // Donations, subs, follows, etc. are ignored - StreamLabs handles them
   }
 
   /**

@@ -14,7 +14,8 @@ export type WSMessageType =
   | { type: 'play'; itemId: string }
   | { type: 'played'; itemId: string }  // Overlay tells dashboard an item finished
   | { type: 'alert'; item: QueueItem }
-  | { type: 'state'; gateOpen: boolean; queue: QueueItem[]; settings: OverlaySettings };
+  | { type: 'token'; jwtToken: string | null }  // JWT token for TTS API
+  | { type: 'state'; gateOpen: boolean; queue: QueueItem[]; settings: OverlaySettings; jwtToken?: string | null };
 
 interface UseOverlayWSOptions {
   clientType: 'dashboard' | 'overlay';
@@ -23,12 +24,27 @@ interface UseOverlayWSOptions {
   onDisconnect?: () => void;
 }
 
+// Global singleton for WebSocket to prevent multiple connections
+// Use window to survive HMR (Hot Module Replacement)
+declare global {
+  interface Window {
+    __minaqueueWS?: Map<string, WebSocket>;
+  }
+}
+
+// Initialize or reuse existing maps on window
+if (!window.__minaqueueWS) {
+  window.__minaqueueWS = new Map();
+}
+
+const wsInstances = window.__minaqueueWS;
+
 export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }: UseOverlayWSOptions) {
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<number | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
   
-  // Store callbacks in refs to avoid dependency issues
+  // Store callbacks in refs
   const onMessageRef = useRef(onMessage);
   const onConnectRef = useRef(onConnect);
   const onDisconnectRef = useRef(onDisconnect);
@@ -39,79 +55,105 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
     onDisconnectRef.current = onDisconnect;
   }, [onMessage, onConnect, onDisconnect]);
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    debug(`[WS ${clientType}] Connecting to ${WS_URL}...`);
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      info(`[WS ${clientType}] Connected!`);
-      setIsConnected(true);
-      // Identify ourselves
-      ws.send(JSON.stringify({ type: 'identify', clientType }));
-      onConnectRef.current?.();
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data) as WSMessageType;
-        onMessageRef.current?.(message);
-      } catch (err) {
-        error(`[WS ${clientType}] Error parsing message:`, err);
-      }
-    };
-
-    ws.onclose = () => {
-      info(`[WS ${clientType}] Disconnected`);
-      setIsConnected(false);
-      wsRef.current = null;
-      onDisconnectRef.current?.();
-
-      // Auto-reconnect after 2 seconds
-      reconnectTimeoutRef.current = window.setTimeout(() => {
-        warn(`[WS ${clientType}] Attempting reconnect...`);
-        if (wsRef.current?.readyState !== WebSocket.OPEN) {
-          const newWs = new WebSocket(WS_URL);
-          wsRef.current = newWs;
-          setupWebSocket(newWs);
+  // Connect on mount
+  useEffect(() => {
+    mountedRef.current = true;
+    
+    const attachHandlers = (ws: WebSocket) => {
+      ws.onopen = () => {
+        if (!mountedRef.current) {
+          ws.close();
+          return;
         }
-      }, 2000);
-    };
-
-    ws.onerror = (err) => {
-      error(`[WS ${clientType}] Error:`, err);
+        info(`[WS ${clientType}] Connected!`);
+        setIsConnected(true);
+        ws.send(JSON.stringify({ type: 'identify', clientType }));
+        onConnectRef.current?.();
+      };
+      
+      ws.onmessage = (event) => {
+        if (!mountedRef.current) return;
+        try {
+          const message = JSON.parse(event.data);
+          onMessageRef.current?.(message as WSMessageType);
+        } catch (err) {
+          error(`[WS ${clientType}] Error parsing message:`, err);
+        }
+      };
+      
+      ws.onclose = () => {
+        info(`[WS ${clientType}] Disconnected`);
+        wsInstances.delete(clientType);
+        if (mountedRef.current) {
+          setIsConnected(false);
+          onDisconnectRef.current?.();
+          
+          // Auto-reconnect after 2 seconds
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+          }
+          reconnectTimeoutRef.current = window.setTimeout(() => {
+            if (mountedRef.current) {
+              warn(`[WS ${clientType}] Attempting reconnect...`);
+              setupWebSocket();
+            }
+          }, 2000);
+        }
+      };
+      
+      ws.onerror = (err) => {
+        error(`[WS ${clientType}] Error:`, err);
+      };
     };
     
-    function setupWebSocket(socket: WebSocket) {
-      socket.onopen = ws.onopen;
-      socket.onmessage = ws.onmessage;
-      socket.onclose = ws.onclose;
-      socket.onerror = ws.onerror;
-    }
+    const setupWebSocket = () => {
+      // Check if we already have a connection for this client type
+      const existingWs = wsInstances.get(clientType);
+      if (existingWs && (existingWs.readyState === WebSocket.OPEN || existingWs.readyState === WebSocket.CONNECTING)) {
+        debug(`[WS ${clientType}] Reusing existing connection (state: ${existingWs.readyState})`);
+        // Re-attach all event handlers for HMR
+        attachHandlers(existingWs);
+        if (existingWs.readyState === WebSocket.OPEN) {
+          setIsConnected(true);
+          onConnectRef.current?.();
+        }
+        return existingWs;
+      }
+      
+      // Close any existing connection that's closing or closed
+      if (existingWs) {
+        existingWs.close();
+        wsInstances.delete(clientType);
+      }
+      
+      info(`[WS ${clientType}] Creating new connection to ${WS_URL}`);
+      const ws = new WebSocket(WS_URL);
+      wsInstances.set(clientType, ws);
+      attachHandlers(ws);
+      
+      return ws;
+    };
+    
+    setupWebSocket();
+    
+    return () => {
+      mountedRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
   }, [clientType]);
 
-  const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-  }, []);
-
   const send = useCallback((message: WSMessageType) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message));
+    const ws = wsInstances.get(clientType);
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(message));
     } else {
       warn(`[WS ${clientType}] Cannot send - not connected`);
     }
   }, [clientType]);
 
-  // Convenience methods
   const sendGate = useCallback((isOpen: boolean) => {
     send({ type: 'gate', isOpen });
   }, [send]);
@@ -144,14 +186,25 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
     send({ type: 'alert', item });
   }, [send]);
 
-  const sendState = useCallback((gateOpen: boolean, queue: QueueItem[], settings: OverlaySettings) => {
-    send({ type: 'state', gateOpen, queue, settings });
+  const sendState = useCallback((gateOpen: boolean, queue: QueueItem[], settings: OverlaySettings, jwtToken?: string | null) => {
+    send({ type: 'state', gateOpen, queue, settings, jwtToken });
   }, [send]);
 
-  useEffect(() => {
-    connect();
-    return () => disconnect();
-  }, [connect, disconnect]);
+  const sendToken = useCallback((jwtToken: string | null) => {
+    send({ type: 'token', jwtToken });
+  }, [send]);
+
+  const connect = useCallback(() => {
+    // Placeholder for manual reconnect
+  }, []);
+
+  const disconnect = useCallback(() => {
+    const ws = wsInstances.get(clientType);
+    if (ws) {
+      ws.close();
+      wsInstances.delete(clientType);
+    }
+  }, [clientType]);
 
   return {
     isConnected,
@@ -165,6 +218,7 @@ export function useOverlayWS({ clientType, onMessage, onConnect, onDisconnect }:
     sendPlayed,
     sendAlert,
     sendState,
+    sendToken,
     connect,
     disconnect,
   };

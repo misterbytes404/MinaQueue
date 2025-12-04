@@ -6,6 +6,7 @@
 import { io, Socket } from 'socket.io-client';
 import type { StreamElementsEvent, QueueItem } from '../types';
 import { info, debug, warn } from '../lib/logger';
+import { setTTSToken } from './streamelements-tts';
 
 // StreamElements Configuration
 // Get your JWT token from StreamElements dashboard: https://streamelements.com/dashboard/account/channels
@@ -34,6 +35,8 @@ export class StreamElementsService {
   private socket: Socket | null = null;
   private onEventCallback: ((item: Omit<QueueItem, 'id' | 'timestamp' | 'status'>) => void) | null = null;
   private isConnecting = false;
+  private lastEventId: string | null = null;  // Track last event to prevent duplicates
+  private lastEventTime = 0;
 
   /**
    * Connect using JWT token from StreamElements dashboard
@@ -45,8 +48,14 @@ export class StreamElementsService {
     onConnectionChange: (connected: boolean) => void
   ): void {
     // Prevent duplicate connections
-    if (this.socket || this.isConnecting) {
-      debug('[StreamElements] Already connected or connecting, skipping');
+    if (this.socket) {
+      info('[StreamElements] Already connected, disconnecting old socket first');
+      this.socket.removeAllListeners();  // Remove all listeners before disconnecting
+      this.socket.disconnect();
+      this.socket = null;
+    }
+    if (this.isConnecting) {
+      debug('[StreamElements] Already connecting, skipping');
       return;
     }
     
@@ -66,6 +75,8 @@ export class StreamElementsService {
     this.socket.on('authenticated', () => {
       info('[StreamElements] Authenticated successfully');
       this.isConnecting = false;
+      // Set the JWT token for TTS API calls
+      setTTSToken(jwtToken);
       onConnectionChange(true);
     });
 
@@ -81,37 +92,54 @@ export class StreamElementsService {
       onConnectionChange(false);
     });
 
-    // Listen for events
+    // Listen for real events
     this.socket.on('event', (event: StreamElementsEvent) => {
+      debug('[StreamElements] Received event:', event.type, event.data?.displayName || event.data?.username);
       this.handleEvent(event);
     });
 
+    // Listen for test events (these are separate from real events)
     this.socket.on('event:test', (event: StreamElementsEvent) => {
-      // Test events for debugging
+      debug('[StreamElements] Received TEST event:', event.type, event.data?.displayName || event.data?.username);
       this.handleEvent(event);
     });
   }
 
   /**
    * Handle incoming StreamElements events
+   * Only processes cheer/bits events - donations and other alerts are handled by StreamElements natively
    */
   private handleEvent(event: StreamElementsEvent): void {
     if (!this.onEventCallback) return;
 
-    // Handle tips (donations) and cheers (bits)
-    if (event.type === 'tip' || event.type === 'cheer') {
-      // For cheers, strip the cheer emotes from the message so TTS doesn't read them
-      const cleanMessage = event.type === 'cheer' 
-        ? stripCheerEmotes(event.data.message || '')
-        : (event.data.message || '');
+    // Only handle cheers (bits) - let StreamElements handle donations, subs, follows, etc.
+    if (event.type === 'cheer') {
+      // Create a unique event ID to prevent duplicates
+      const eventId = `${event.data.username}-${event.data.amount}-${event.data.message || ''}`;
+      const now = Date.now();
+      
+      // Ignore duplicate events within 3 seconds
+      if (eventId === this.lastEventId && now - this.lastEventTime < 3000) {
+        debug('[StreamElements] Ignoring duplicate event:', eventId);
+        return;
+      }
+      
+      this.lastEventId = eventId;
+      this.lastEventTime = now;
+      
+      // Strip the cheer emotes from the message so TTS doesn't read them
+      const cleanMessage = stripCheerEmotes(event.data.message || '');
+      
+      info('[StreamElements] Processing cheer event:', event.data.displayName || event.data.username, event.data.amount, 'bits');
       
       this.onEventCallback({
         username: event.data.displayName || event.data.username,
         amount: event.data.amount,
         message: cleanMessage,
-        type: event.type === 'cheer' ? 'bits' : 'donation',
+        type: 'bits',
       });
     }
+    // Tips/donations, subs, follows, etc. are ignored - StreamElements handles them
   }
 
   /**
@@ -186,6 +214,8 @@ export class StreamElementsService {
       this.socket = null;
     }
     this.onEventCallback = null;
+    // Clear TTS token on disconnect
+    setTTSToken(null);
   }
 }
 

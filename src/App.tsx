@@ -9,7 +9,6 @@ import { ProviderSetup } from './components/ProviderSetup';
 import { AuthCallback } from './components/AuthCallback';
 import { OverlayMode } from './components/OverlayMode';
 import { OverlaySettingsPage } from './components/OverlaySettingsPage';
-import { useTTSQueue } from './hooks/useTTSQueue';
 import { useAppStore } from './store/useAppStore';
 import { useOverlayWS, type WSMessageType } from './hooks/useOverlayWS';
 import { streamElementsService } from './services/streamelements';
@@ -19,6 +18,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const { 
     providerConnection, 
+    setProviderConnection,
     setConnectionStatus, 
     addItem, 
     settings,
@@ -32,9 +32,6 @@ function App() {
   const isAuthCallback = pathname.includes('/auth/');
   const isOverlayMode = pathname === '/overlay';
   const isOverlaySettings = pathname.includes('/overlay-settings');
-  
-  // Initialize TTS queue manager
-  const { forcePlay } = useTTSQueue();
   
   // WebSocket connection to overlay server (only for dashboard and settings page, not overlay)
   const shouldConnectWS = !isOverlayMode && !isAuthCallback;
@@ -51,7 +48,7 @@ function App() {
     info('[Dashboard] Connected to overlay server');
   }, []);
   
-  const { isConnected: wsConnected, sendQueue, sendGate, sendSettings, sendPlay } = useOverlayWS({
+  const { isConnected: wsConnected, sendQueue, sendGate, sendSettings, sendPlay, sendToken } = useOverlayWS({
     clientType: 'dashboard',
     onConnect: shouldConnectWS ? handleWSConnect : undefined,
     onMessage: shouldConnectWS ? handleWSMessage : undefined,
@@ -73,16 +70,31 @@ function App() {
     }
   }, [settings.isOpen, wsConnected, sendGate, shouldConnectWS]);
 
-  // NOTE: Overlay settings are broadcast from the OverlaySettingsPage, not from here.
-  // The dashboard doesn't have the full overlay settings (e.g., alertImageUrl is stored in IndexedDB).
+  // Send JWT token to overlay server for TTS API
+  useEffect(() => {
+    if (wsConnected && shouldConnectWS && providerConnection.accessToken) {
+      debug('[Dashboard] Sending JWT token to overlay server');
+      sendToken(providerConnection.accessToken);
+    }
+  }, [wsConnected, shouldConnectWS, providerConnection.accessToken, sendToken]);
 
-  // Handle play button - broadcast to overlay
+  // Broadcast TTS voice changes to overlay
+  useEffect(() => {
+    if (wsConnected && shouldConnectWS) {
+      debug('[Dashboard] Broadcasting TTS voice:', settings.overlay.ttsVoice);
+      sendSettings(settings.overlay);
+    }
+  }, [settings.overlay.ttsVoice, wsConnected, sendSettings, shouldConnectWS]);
+
+  // Handle play button - broadcast to overlay (TTS happens on overlay side)
   const handlePlayItem = useCallback((itemId: string) => {
     if (wsConnected) {
       sendPlay(itemId);
+    } else {
+      // Fallback: if overlay not connected, mark as played locally
+      markItemPlayed(itemId);
     }
-    forcePlay(itemId);
-  }, [wsConnected, sendPlay, forcePlay]);
+  }, [wsConnected, sendPlay, markItemPlayed]);
 
   // Auto-reconnect to provider if we have stored credentials
   useEffect(() => {
@@ -91,7 +103,7 @@ function App() {
     
     hasAttemptedReconnect.current = true;
     
-    info('[Dashboard] Connecting to', providerConnection.provider);
+    info('[Dashboard] Reconnecting to', providerConnection.provider);
     
     if (providerConnection.provider === 'streamelements') {
       streamElementsService.connectWithToken(
@@ -104,6 +116,7 @@ function App() {
         (connected) => {
           info('[Dashboard] StreamElements:', connected ? 'connected' : 'disconnected');
           setConnectionStatus(connected ? 'connected' : 'disconnected');
+          setProviderConnection({ isConnected: connected });
         }
       );
     } else if (providerConnection.provider === 'streamlabs' && providerConnection.socketToken) {
@@ -118,10 +131,11 @@ function App() {
         (connected) => {
           info('[Dashboard] StreamLabs:', connected ? 'connected' : 'disconnected');
           setConnectionStatus(connected ? 'connected' : 'disconnected');
+          setProviderConnection({ isConnected: connected });
         }
       );
     }
-  }, [providerConnection.accessToken, providerConnection.provider, providerConnection.socketToken, settings.minBits, addItem, setConnectionStatus, isOverlayMode, isAuthCallback]);
+  }, [providerConnection.accessToken, providerConnection.provider, providerConnection.socketToken, settings.minBits, addItem, setConnectionStatus, setProviderConnection, isOverlayMode, isAuthCallback]);
 
   // Listen for OAuth popup completion
   useEffect(() => {
@@ -158,7 +172,10 @@ function App() {
         {/* Connection Status */}
         <div className="flex justify-center gap-4 py-2 text-xs">
           <span className={providerConnection.isConnected ? 'text-green-400' : 'text-red-400'}>
-            {providerConnection.isConnected ? '● StreamElements' : '○ StreamElements'}
+            {providerConnection.isConnected 
+              ? `● ${providerConnection.provider === 'streamlabs' ? 'StreamLabs' : 'StreamElements'}` 
+              : `○ ${providerConnection.provider !== 'none' ? (providerConnection.provider === 'streamlabs' ? 'StreamLabs' : 'StreamElements') : 'No Provider'}`
+            }
           </span>
           <span className={wsConnected ? 'text-green-400' : 'text-yellow-400'}>
             {wsConnected ? '● Overlay Server' : '○ Overlay Server'}

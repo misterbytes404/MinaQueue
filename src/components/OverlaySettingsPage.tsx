@@ -1,9 +1,10 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, Palette, Type, Image as ImageIcon, Copy, Check, Eye, FlaskConical, X, Save, Wifi, WifiOff } from 'lucide-react';
+import { Upload, Palette, Type, Image as ImageIcon, Copy, Check, Eye, FlaskConical, X, Save, Wifi, WifiOff, Volume2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { AlertDisplay } from './AlertDisplay';
 import type { QueueItem, OverlaySettings } from '../types';
 import { info, error as logError } from '../lib/logger';
+import { playCloudTTS, getCloudVoicesGroupedByLanguage, DEFAULT_CLOUD_VOICE } from '../services/cloud-tts';
 
 // IndexedDB helper for storing large images
 const DB_NAME = 'minaqueue-images';
@@ -98,6 +99,10 @@ export function OverlaySettingsPage({ wsConnected, onSendSettings }: OverlaySett
   const [saved, setSaved] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [imageLoading, setImageLoading] = useState(false);
+  const [voiceTestPlaying, setVoiceTestPlaying] = useState(false);
+
+  // Group cloud voices by language for the dropdown
+  const voiceGroups = getCloudVoicesGroupedByLanguage();
 
   // Load image from IndexedDB on mount (handles large GIFs that can't fit in localStorage)
   useEffect(() => {
@@ -432,6 +437,62 @@ export function OverlaySettingsPage({ wsConnected, onSendSettings }: OverlaySett
               </div>
             </div>
 
+            {/* TTS Voice Settings */}
+            <div className="bg-bone-white/5 border border-bone-white/20 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-cerber-violet" />
+                TTS Voice
+              </h2>
+              
+              <div className="space-y-4">
+                {/* Voice Selection */}
+                <div>
+                  <label className="block text-sm text-bone-white/70 mb-2">Voice</label>
+                  <select
+                    value={settings.overlay.ttsVoice || DEFAULT_CLOUD_VOICE}
+                    onChange={(e) => handleSettingChange(() => updateOverlaySettings({ ttsVoice: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg bg-bg-void border border-bone-white/30 text-bone-white focus:border-cerber-violet focus:outline-none"
+                  >
+                    {Object.entries(voiceGroups).map(([language, voices]) => (
+                      <optgroup key={language} label={language}>
+                        {voices.map((voice) => (
+                          <option key={voice.id} value={voice.id}>
+                            {voice.name} ({voice.gender})
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Test Voice Button */}
+                <div>
+                  <button
+                    onClick={() => {
+                      if (voiceTestPlaying) return;
+                      setVoiceTestPlaying(true);
+                      const voice = settings.overlay.ttsVoice || DEFAULT_CLOUD_VOICE;
+                      playCloudTTS('Hello! This is a test of the text to speech voice.', voice, 1)
+                        .promise
+                        .finally(() => setVoiceTestPlaying(false));
+                    }}
+                    disabled={voiceTestPlaying}
+                    className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                      voiceTestPlaying
+                        ? 'bg-bone-white/10 text-bone-white/50 cursor-not-allowed'
+                        : 'bg-cerber-violet/20 text-cerber-violet border border-cerber-violet/50 hover:bg-cerber-violet/30'
+                    }`}
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    {voiceTestPlaying ? 'Playing...' : 'Test Voice'}
+                  </button>
+                  <p className="text-xs text-bone-white/50 mt-2">
+                    Uses Amazon Polly for consistent TTS in dashboard and OBS
+                  </p>
+                </div>
+              </div>
+            </div>
+
             {/* Color Settings */}
             <div className="bg-bone-white/5 border border-bone-white/20 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -645,3 +706,4 @@ export function OverlaySettingsPage({ wsConnected, onSendSettings }: OverlaySett
     </div>
   );
 }
+

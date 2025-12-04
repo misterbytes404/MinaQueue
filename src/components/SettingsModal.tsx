@@ -23,6 +23,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const baseUrl = `${window.location.origin}/overlay`;
     const params = new URLSearchParams();
     
+    // Auto-unlock audio for OBS (skips the "click to enable" prompt)
+    params.set('unlock', 'true');
+    
     // Add provider credentials if connected
     if (providerConnection.provider !== 'none' && providerConnection.accessToken) {
       params.set('provider', providerConnection.provider);
@@ -39,9 +42,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       params.set('minBits', settings.minBits.toString());
     }
     
+    // Add TTS voice if not default
+    if (settings.overlay.ttsVoice && settings.overlay.ttsVoice !== 'default') {
+      params.set('voice', settings.overlay.ttsVoice);
+    }
+    
     const queryString = params.toString();
     return queryString ? `${baseUrl}?${queryString}` : baseUrl;
-  }, [providerConnection, settings.minBits]);
+  }, [providerConnection, settings.minBits, settings.overlay.ttsVoice]);
 
   const handleCopyOverlayUrl = async () => {
     try {

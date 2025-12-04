@@ -42,13 +42,15 @@ export interface OverlaySettings {
   alertDuration: number; // Base duration in ms
   showAmount: boolean;
   showMessage: boolean;
+  
+  // TTS Settings
+  ttsVoice: string; // StreamElements voice ID (e.g., 'Brian', 'Amy')
 }
 
 // Application Settings
 export interface AppSettings {
   minBits: number;
   volume: number;
-  selectedVoiceURI: string | null;
   isOpen: boolean; // The "Gate" status
   provider: AlertProvider;
   overlay: OverlaySettings;

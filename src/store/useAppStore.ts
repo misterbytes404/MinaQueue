@@ -16,7 +16,6 @@ interface AppState {
   settings: AppSettings;
   setMinBits: (minBits: number) => void;
   setVolume: (volume: number) => void;
-  setSelectedVoiceURI: (uri: string | null) => void;
   toggleGate: () => void;
   setGateOpen: (isOpen: boolean) => void;
   setProvider: (provider: AlertProvider) => void;
@@ -42,17 +41,34 @@ export const useAppStore = create<AppState>()(
       queue: [],
       
       addItem: (item) =>
-        set((state) => ({
-          queue: [
-            ...state.queue,
-            {
-              ...item,
-              id: crypto.randomUUID(),
-              timestamp: Date.now(),
-              status: 'pending',
-            },
-          ],
-        })),
+        set((state) => {
+          // Deduplicate: check if we already have an item with same username, amount, message within 5 seconds
+          const now = Date.now();
+          const isDuplicate = state.queue.some(existing => 
+            existing.username === item.username &&
+            existing.amount === item.amount &&
+            existing.message === item.message &&
+            now - existing.timestamp < 5000 // Within 5 seconds
+          );
+          
+          if (isDuplicate) {
+            warn('[Store] Ignoring duplicate event from', item.username);
+            return state; // Don't add duplicate
+          }
+          
+          info('[Store] Adding item to queue:', item.username, item.amount, 'bits');
+          return {
+            queue: [
+              ...state.queue,
+              {
+                ...item,
+                id: crypto.randomUUID(),
+                timestamp: now,
+                status: 'pending',
+              },
+            ],
+          };
+        }),
       
       removeItem: (id) =>
         set((state) => ({
@@ -82,7 +98,6 @@ export const useAppStore = create<AppState>()(
       settings: {
         minBits: 200,
         volume: 1.0,
-        selectedVoiceURI: null,
         isOpen: true,
         provider: 'none',
         overlay: {
@@ -98,6 +113,7 @@ export const useAppStore = create<AppState>()(
           alertDuration: 5000,
           showAmount: true,
           showMessage: true,
+          ttsVoice: 'Brian', // Default to Brian (cloud TTS)
         },
       },
       
@@ -109,11 +125,6 @@ export const useAppStore = create<AppState>()(
       setVolume: (volume) =>
         set((state) => ({
           settings: { ...state.settings, volume },
-        })),
-      
-      setSelectedVoiceURI: (selectedVoiceURI) =>
-        set((state) => ({
-          settings: { ...state.settings, selectedVoiceURI },
         })),
       
       toggleGate: () =>
