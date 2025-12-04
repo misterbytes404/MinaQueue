@@ -161,8 +161,8 @@ The big button at the top controls whether alerts play:
 
 | State | What Happens |
 |-------|--------------|
-| 🚪 **OPEN** (Green) | Alerts play immediately |
-| 🔒 **CLOSED** (Red) | Alerts queue up and wait |
+| 🚪 **OPEN** | Alerts play immediately |
+| 🔒 **CLOSED** | Alerts queue up and wait |
 
 ### The Queue
 
