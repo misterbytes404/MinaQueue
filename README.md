@@ -39,106 +39,77 @@ If someone is hosting MinaQueue for you (like a friend or tech person), you just
 
 ---
 
-## 💻 Option B: Run It Yourself (Local Setup)
+## 💻 Option B: Local Setup
 
-Want to run MinaQueue on your own computer? Follow this guide!
+### Requirements
 
-### What You'll Need
+- Windows 10/11
+- [Node.js LTS](https://nodejs.org/) installed
+- StreamElements account
+- OBS Studio
+- Amazon AWS account (for TTS - ~$1-3/month, first year mostly free)
 
-- **Windows 10/11** computer
-- **StreamElements account** (for receiving alerts)
-- **OBS Studio** (for streaming)
-- **Amazon AWS account** (for TTS voices - costs ~$1-3/month, first year mostly free!)
+### Step 1: Install Node.js & pnpm
 
-### Step 1: Install Node.js
-
-Node.js is what makes MinaQueue run. You only need to do this once!
-
-1. Go to [nodejs.org](https://nodejs.org/)
-2. Download the **LTS** version (the big green button on the left)
-3. Run the installer, click Next through everything
-4. **Restart your computer**
-
-### Step 2: Install pnpm
-
-pnpm helps manage the app. Open **PowerShell** (search for it in Start menu) and run:
+Install [Node.js LTS](https://nodejs.org/), then open PowerShell:
 
 ```powershell
 npm install -g pnpm
 ```
 
-### Step 3: Download MinaQueue
-
-1. Download the MinaQueue files (ZIP file or from GitHub)
-2. Extract/unzip to a folder you'll remember (like `C:\MinaQueue`)
-
-### Step 4: Install Dependencies
-
-Open **PowerShell**, navigate to your MinaQueue folder, and run:
+### Step 2: Clone the Repository
 
 ```powershell
-cd C:\MinaQueue
+cd C:\
+git clone https://github.com/misterbytes404/MinaQueue.git
+cd MinaQueue
 pnpm install
 ```
 
-This downloads everything MinaQueue needs. Takes a minute or two.
+Or download the ZIP from GitHub and extract to `C:\MinaQueue`.
 
-### Step 5: Start MinaQueue!
+### Step 3: Start MinaQueue
 
-You need to run **two commands** in **two separate PowerShell windows**:
+Open **two PowerShell windows**:
 
-**Window 1 - The Server:**
+**Window 1 - Server:**
 ```powershell
 cd C:\MinaQueue
 pnpm run server
 ```
-Keep this window open! You should see "HTTP server running on http://localhost:5175"
 
-**Window 2 - The App:**
+**Window 2 - App:**
 ```powershell
 cd C:\MinaQueue
 pnpm run dev
 ```
-Keep this window open too! It will show a URL.
 
-**Now open your browser to:** `http://localhost:5173`
-
-🎉 **MinaQueue is running!**
+Open `http://localhost:5173` in your browser.
 
 ---
 
 ## 🔗 Connect to StreamElements
 
 1. Go to [StreamElements Account Settings](https://streamelements.com/dashboard/account/channels)
-2. Scroll down and click **"Show secrets"**
-3. Copy your **JWT Token** (it's a long string of random letters and numbers)
-4. In MinaQueue, paste the token and click **Connect**
-5. You should see a green "Connected" status!
+2. Click **"Show secrets"**
+3. Copy your **JWT Token**
+4. Paste it in MinaQueue and click **Connect**
 
 ---
 
-## 📺 Set Up the OBS Overlay
+## 📺 OBS Overlay Setup
 
-This is the alert that appears on your stream.
+1. Add a **Browser** source in OBS
+2. URL: `http://localhost:5173/overlay`
+3. Size: **1920x1080**
 
-1. In **OBS**, click the **+** button under Sources
-2. Select **Browser**
-3. Name it "MinaQueue Alerts" and click OK
-4. Set these settings:
-   - **URL:** `http://localhost:5173/overlay`
-   - **Width:** `1920`
-   - **Height:** `1080`
-5. Click **OK**
-
-**⚠️ Important:** Disable your existing StreamElements Cheer/Bits alert so you don't get double alerts!
+**Note:** Disable your existing StreamElements Cheer/Bits alert to avoid duplicates.
 
 ---
 
-## 🔊 Set Up Amazon Polly (TTS Voices)
+## 🔊 Amazon Polly Setup (TTS)
 
-This gives you high-quality TTS that sounds the same in your browser AND OBS!
-
-### How Much Does It Cost?
+### Cost
 
 | Usage | Monthly Cost |
 |-------|--------------|
@@ -146,14 +117,12 @@ This gives you high-quality TTS that sounds the same in your browser AND OBS!
 | Medium (2,000 alerts) | ~$1.20 |
 | Heavy (5,000 alerts) | ~$3.00 |
 
-**First 12 months:** 5 million characters FREE! That's roughly 25,000+ alerts.
+First 12 months: 5 million characters free (~25,000 alerts).
 
-### Create an AWS Account
+### Create AWS Account
 
 1. Go to [aws.amazon.com](https://aws.amazon.com/)
-2. Click **"Create an AWS Account"**
-3. Follow the steps (you'll need an email and credit card)
-4. Don't worry - you won't be charged much with normal use!
+2. Create an account (requires credit card)
 
 ### Create Access Keys
 
@@ -171,18 +140,16 @@ This gives you high-quality TTS that sounds the same in your browser AND OBS!
 
 ### Add Keys to MinaQueue
 
-1. In your MinaQueue folder, find the file called `.env.example`
-2. Make a copy and rename it to `.env`
-3. Open `.env` in Notepad and fill in your keys:
+1. Copy `.env.example` to `.env`
+2. Add your keys:
 
 ```env
-AWS_ACCESS_KEY_ID=paste_your_access_key_here
-AWS_SECRET_ACCESS_KEY=paste_your_secret_key_here
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_REGION=us-east-1
 ```
 
-4. Save the file
-5. **Restart the server** (close the PowerShell window running `pnpm run server` and start it again)
+3. Restart the server
 
 ---
 
@@ -196,8 +163,6 @@ The big button at the top controls whether alerts play:
 |-------|--------------|
 | 🚪 **OPEN** (Green) | Alerts play immediately |
 | 🔒 **CLOSED** (Red) | Alerts queue up and wait |
-
-**Pro tip:** Close the gate during cutscenes, boss fights, or emotional moments!
 
 ### The Queue
 
@@ -215,23 +180,13 @@ When the gate is closed, alerts stack up in your queue. You can:
 
 ---
 
-## 🎨 Customizing Your Alerts
+## 🎨 Customization
 
-### Overlay Settings Page
+**Overlay Settings:** `http://localhost:5173/overlay-settings`
+- Alert image, colors, font, duration
 
-Go to `http://localhost:5173/overlay-settings` to customize:
-
-- **Alert Image** - Upload your own GIF or image!
-- **Colors** - Background, border, text colors
-- **Font** - Change the font family and size
-- **Duration** - How long alerts stay on screen
-
-### Voice & Volume
-
-In the dashboard footer:
-
-- **TTS Voice** - Pick from Brian, Amy, Joanna, and more!
-- **Volume Slider** - Adjust how loud alerts are (syncs to OBS overlay too!)
+**Voice & Volume:** Dashboard footer
+- TTS voice selection, volume slider (syncs to OBS)
 
 ---
 
