@@ -5,6 +5,23 @@ import { useOverlayWS, type WSMessageType } from '../hooks/useOverlayWS';
 import { debug, info, warn, error } from '../lib/logger';
 
 /**
+ * Strip cheer emotes from message text for TTS
+ * Cheer emotes follow patterns like: Cheer100, BibleThump500, Kappa1000, etc.
+ */
+function stripCheerEmotes(message: string): string {
+  if (!message) return '';
+  
+  // Common cheer emote prefixes - Twitch has many variations
+  // Also catches repeated patterns like "cheer100 cheer100"
+  const cheerPattern = /\b(Cheer|BibleThump|cheerwhal|Corgo|uni|ShowLove|Party|SeemsGood|Pride|Kappa|FrankerZ|HeyGuys|DansGame|EleGiggle|TriHard|Kreygasm|4Head|SwiftRage|NotLikeThis|FailFish|VoHiYo|PJSalt|MrDestructoid|bday|RIPCheer|Shamrock|BitBoss|Streamlabs|Muxy|HolidayCheer|Goal|Anon)\d+\b/gi;
+  
+  return message
+    .replace(cheerPattern, '')
+    .replace(/\s+/g, ' ')  // Collapse multiple spaces
+    .trim();
+}
+
+/**
  * OBS Overlay Mode - WebSocket Client
  * 
  * Connects to the overlay server (ws://localhost:5175) to receive:
@@ -64,7 +81,7 @@ export function OverlayMode() {
 
   // Handle incoming WebSocket messages
   const handleMessage = useCallback((message: WSMessageType) => {
-    debug('[Overlay] Received:', message.type);
+    debug('[Overlay] Received message type:', message.type);
     
     switch (message.type) {
       case 'gate':
@@ -89,10 +106,12 @@ export function OverlayMode() {
         
       case 'settings':
         // Merge with defaults to ensure all required properties exist
+        info('[Overlay] Received settings update, alertImageUrl:', message.settings.alertImageUrl ? 'present (' + message.settings.alertImageUrl.length + ' chars)' : 'null');
         setOverlaySettings({ ...defaultOverlaySettings, ...message.settings });
         break;
         
       case 'state':
+        info('[Overlay] Received initial state, settings.alertImageUrl:', message.settings?.alertImageUrl ? 'present (' + message.settings.alertImageUrl.length + ' chars)' : 'null');
         setState(prev => {
           const currentPlayingId = prev.queue.find(i => i.status === 'playing')?.id;
           const newQueue = message.queue.map(item => {
@@ -272,35 +291,41 @@ export function OverlayMode() {
     synth.cancel(); // Cancel any previous speech
     
     if (volume > 0 && playingItem.message) {
-      // Speak only the message body. Do NOT read the username or the amounts (cheers/bits).
-      const utterance = new SpeechSynthesisUtterance(
-        `${playingItem.message}`
-      );
-      utterance.volume = volume;
+      // Strip cheer emotes and speak only the user's actual message
+      const cleanMessage = stripCheerEmotes(playingItem.message);
+      debug('[Overlay] TTS message (cleaned):', cleanMessage);
       
-      // Mark TTS as finished when it completes — record completion time
-      utterance.onend = () => {
-        debug('[Overlay] TTS finished');
-        // Record actual TTS completion time to enforce post-TTS delay
-        lastCompletedTime.current = Date.now();
-        setTtsFinished(true);
-        // Notify dashboard immediately that item has finished speaking
-        if (playingItem?.id) {
-          try {
-            sendPlayed(playingItem.id);
-          } catch (e) {
-            warn('[Overlay] sendPlayed failed on utterance end', e);
+      if (cleanMessage) {
+        const utterance = new SpeechSynthesisUtterance(cleanMessage);
+        utterance.volume = volume;
+        
+        // Mark TTS as finished when it completes — record completion time
+        utterance.onend = () => {
+          debug('[Overlay] TTS finished');
+          // Record actual TTS completion time to enforce post-TTS delay
+          lastCompletedTime.current = Date.now();
+          setTtsFinished(true);
+          // Notify dashboard immediately that item has finished speaking
+          if (playingItem?.id) {
+            try {
+              sendPlayed(playingItem.id);
+            } catch (e) {
+              warn('[Overlay] sendPlayed failed on utterance end', e);
+            }
           }
-        }
-      };
+        };
+        
+        utterance.onerror = () => {
+          error('[Overlay] TTS error');
+          lastCompletedTime.current = Date.now();
+          setTtsFinished(true);
+        };
       
-      utterance.onerror = () => {
-        error('[Overlay] TTS error');
-        lastCompletedTime.current = Date.now();
+        synth.speak(utterance);
+      } else {
+        // Message was only cheer emotes, nothing to speak
         setTtsFinished(true);
-      };
-      
-      synth.speak(utterance);
+      }
     } else {
       // No message to speak, mark as finished immediately
       setTtsFinished(true);

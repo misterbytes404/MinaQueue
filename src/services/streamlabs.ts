@@ -13,6 +13,22 @@ const STREAMLABS_CLIENT_ID = import.meta.env.VITE_STREAMLABS_CLIENT_ID || '';
 const STREAMLABS_REDIRECT_URI = import.meta.env.VITE_STREAMLABS_REDIRECT_URI || 'http://localhost:5173/auth/streamlabs';
 const STREAMLABS_API_BASE = 'https://streamlabs.com/api/v2.0';
 
+/**
+ * Strip cheer emotes from message text
+ * Cheer emotes follow patterns like: Cheer100, BibleThump500, Kappa1000, etc.
+ */
+function stripCheerEmotes(message: string): string {
+  if (!message) return '';
+  
+  // Common cheer emote prefixes - Twitch has many variations
+  const cheerPattern = /\b(Cheer|BibleThump|cheerwhal|Corgo|uni|ShowLove|Party|SeemsGood|Pride|Kappa|FrankerZ|HeyGuys|DansGame|EleGiggle|TriHard|Kreygasm|4Head|SwiftRage|NotLikeThis|FailFish|VoHiYo|PJSalt|MrDestructoid|bday|RIPCheer|Shamrock|BitBoss|Streamlabs|Muxy|HolidayCheer|Goal|Anon)\d+\b/gi;
+  
+  return message
+    .replace(cheerPattern, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export class StreamLabsService {
   private socket: Socket | null = null;
   private accessToken: string | null = null;
@@ -124,10 +140,15 @@ export class StreamLabsService {
       for (const msg of event.message) {
         const amount = typeof msg.amount === 'string' ? parseFloat(msg.amount) : msg.amount;
         
+        // For bits, strip the cheer emotes from the message so TTS doesn't read them
+        const cleanMessage = event.type === 'bits'
+          ? stripCheerEmotes(msg.message || '')
+          : (msg.message || '');
+        
         this.onEventCallback({
           username: msg.name,
           amount: amount,
-          message: msg.message || '',
+          message: cleanMessage,
           type: event.type === 'bits' ? 'bits' : 'donation',
         });
       }

@@ -90,6 +90,7 @@ wss.on('connection', (ws) => {
           break;
         case 'settings':
           currentState.settings = message.settings;
+          debug('[Overlay Server] Settings updated, alertImageUrl:', message.settings.alertImageUrl ? 'present (' + message.settings.alertImageUrl.length + ' chars)' : 'null');
           break;
         case 'state':
           // Full state update

@@ -11,6 +11,25 @@ import { info, debug, warn } from '../lib/logger';
 // Get your JWT token from StreamElements dashboard: https://streamelements.com/dashboard/account/channels
 const STREAMELEMENTS_SOCKET_URL = 'https://realtime.streamelements.com';
 
+/**
+ * Strip cheer emotes from message text
+ * Cheer emotes follow patterns like: Cheer100, BibleThump500, Kappa1000, etc.
+ * This regex matches common cheer prefixes followed by numbers
+ */
+function stripCheerEmotes(message: string): string {
+  if (!message) return '';
+  
+  // Common cheer emote prefixes - Twitch has many variations
+  // Pattern: word characters followed by numbers at word boundaries
+  // This catches: Cheer100, BibleThump500, DansGame1000, etc.
+  const cheerPattern = /\b(Cheer|BibleThump|cheerwhal|Corgo|uni|ShowLove|Party|SeemsGood|Pride|Kappa|FrankerZ|HeyGuys|DansGame|EleGiggle|TriHard|Kreygasm|4Head|SwiftRage|NotLikeThis|FailFish|VoHiYo|PJSalt|MrDestructoid|bday|RIPCheer|Shamrock|BitBoss|Streamlabs|Muxy|HolidayCheer|Goal|Anon)\d+\b/gi;
+  
+  return message
+    .replace(cheerPattern, '')
+    .replace(/\s+/g, ' ')  // Collapse multiple spaces
+    .trim();
+}
+
 export class StreamElementsService {
   private socket: Socket | null = null;
   private onEventCallback: ((item: Omit<QueueItem, 'id' | 'timestamp' | 'status'>) => void) | null = null;
@@ -81,10 +100,15 @@ export class StreamElementsService {
 
     // Handle tips (donations) and cheers (bits)
     if (event.type === 'tip' || event.type === 'cheer') {
+      // For cheers, strip the cheer emotes from the message so TTS doesn't read them
+      const cleanMessage = event.type === 'cheer' 
+        ? stripCheerEmotes(event.data.message || '')
+        : (event.data.message || '');
+      
       this.onEventCallback({
         username: event.data.displayName || event.data.username,
         amount: event.data.amount,
-        message: event.data.message || '',
+        message: cleanMessage,
         type: event.type === 'cheer' ? 'bits' : 'donation',
       });
     }

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type { QueueItem, AppSettings, ConnectionStatus, AlertProvider, ProviderConnection, OverlaySettings } from '../types';
-import { error } from '../lib/logger';
+import { error, info, warn } from '../lib/logger';
 
 interface AppState {
   // Queue
@@ -197,8 +197,34 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'minaqueue-storage',
+      storage: createJSONStorage(() => ({
+        getItem: (name) => {
+          const value = localStorage.getItem(name);
+          return value;
+        },
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, value);
+          } catch (e) {
+            // localStorage quota exceeded - this shouldn't happen since we exclude large data
+            if (e instanceof DOMException && (e.name === 'QuotaExceededError' || e.code === 22)) {
+              warn('[Store] localStorage quota exceeded');
+            } else {
+              error('[Store] Failed to save to localStorage:', e);
+            }
+          }
+        },
+        removeItem: (name) => localStorage.removeItem(name),
+      })),
       partialize: (state) => ({
-        settings: state.settings,
+        settings: {
+          ...state.settings,
+          // Exclude alertImageUrl from localStorage - it's stored in IndexedDB
+          overlay: {
+            ...state.settings.overlay,
+            alertImageUrl: null, // Don't persist image to localStorage, use IndexedDB instead
+          },
+        },
         queue: state.queue, // Persist queue for cross-tab sync
         // Only persist credentials, not connection state (isConnected is determined at runtime)
         providerConnection: {
@@ -210,6 +236,11 @@ export const useAppStore = create<AppState>()(
           isConnected: false,
         },
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          info('[Store] State rehydrated from localStorage');
+        }
+      },
     }
   )
 );

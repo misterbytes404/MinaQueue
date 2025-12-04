@@ -1,8 +1,72 @@
-import { useRef, useState } from 'react';
-import { Upload, Palette, Type, Image as ImageIcon, Copy, Check, Eye, FlaskConical, X } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { Upload, Palette, Type, Image as ImageIcon, Copy, Check, Eye, FlaskConical, X, Save, Wifi, WifiOff } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { AlertDisplay } from './AlertDisplay';
-import type { QueueItem } from '../types';
+import type { QueueItem, OverlaySettings } from '../types';
+import { info, error as logError } from '../lib/logger';
+
+// IndexedDB helper for storing large images
+const DB_NAME = 'minaqueue-images';
+const STORE_NAME = 'images';
+const IMAGE_KEY = 'alert-image';
+
+async function openImageDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+  });
+}
+
+async function saveImageToDB(dataUrl: string): Promise<void> {
+  const db = await openImageDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.put(dataUrl, IMAGE_KEY);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function loadImageFromDB(): Promise<string | null> {
+  try {
+    const db = await openImageDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(IMAGE_KEY);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result || null);
+      tx.oncomplete = () => db.close();
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function deleteImageFromDB(): Promise<void> {
+  try {
+    const db = await openImageDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.delete(IMAGE_KEY);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      tx.oncomplete = () => db.close();
+    });
+  } catch {
+    // Ignore errors when deleting
+  }
+}
 
 const FONT_OPTIONS = [
   'Segoe UI',
@@ -17,35 +81,129 @@ const FONT_OPTIONS = [
   'Lucida Console',
 ];
 
+interface OverlaySettingsPageProps {
+  wsConnected: boolean;
+  onSendSettings: (settings: OverlaySettings) => void;
+}
+
 /**
  * Dedicated Overlay Settings Page
  * Opens in a new tab for configuring the OBS overlay appearance
  */
-export function OverlaySettingsPage() {
+export function OverlaySettingsPage({ wsConnected, onSendSettings }: OverlaySettingsPageProps) {
   const { settings, updateOverlaySettings } = useAppStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [copied, setCopied] = useState(false);
   const [previewItem, setPreviewItem] = useState<QueueItem | null>(null);
+  const [saved, setSaved] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  // Load image from IndexedDB on mount (handles large GIFs that can't fit in localStorage)
+  useEffect(() => {
+    async function loadStoredImage() {
+      // First check IndexedDB
+      const dbImage = await loadImageFromDB();
+      if (dbImage && !settings.overlay.alertImageUrl) {
+        info('[Settings] Restoring image from IndexedDB');
+        updateOverlaySettings({ alertImageUrl: dbImage });
+        return;
+      }
+      
+      // Fallback to old localStorage key for migration
+      const storedImage = localStorage.getItem('minaqueue-alert-image');
+      if (storedImage && !settings.overlay.alertImageUrl) {
+        info('[Settings] Migrating image from localStorage to IndexedDB');
+        updateOverlaySettings({ alertImageUrl: storedImage });
+        // Migrate to IndexedDB and remove from localStorage
+        try {
+          await saveImageToDB(storedImage);
+          localStorage.removeItem('minaqueue-alert-image');
+        } catch (e) {
+          logError('[Settings] Failed to migrate image to IndexedDB:', e);
+        }
+      }
+    }
+    loadStoredImage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Track changes
+  const handleSettingChange = <T,>(updater: () => T) => {
+    updater();
+    setHasUnsavedChanges(true);
+    setSaved(false);
+  };
+
+  // Broadcast settings on initial connect
+  useEffect(() => {
+    if (wsConnected) {
+      info('[Settings] Connected to overlay server, broadcasting settings');
+      onSendSettings(settings.overlay);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsConnected]);
+
+  const handleSave = () => {
+    if (wsConnected) {
+      info('[Settings] Broadcasting settings to overlay, alertImageUrl:', settings.overlay.alertImageUrl ? 'present (' + settings.overlay.alertImageUrl.length + ' chars)' : 'null');
+      onSendSettings(settings.overlay);
+      setSaved(true);
+      setHasUnsavedChanges(false);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      info('[Settings] No file selected');
+      return;
+    }
+
+    info('[Settings] File selected:', file.name, file.type, file.size);
 
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file');
       return;
     }
 
+    // Increased limit to 10MB for GIFs (IndexedDB can handle much more)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Image file is too large. Please use an image under 10MB.\n\nTip: Use a tool like ezgif.com to compress large GIFs.');
+      return;
+    }
+
+    setImageLoading(true);
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const dataUrl = event.target?.result as string;
-      updateOverlaySettings({ alertImageUrl: dataUrl });
+      info('[Settings] Image loaded, data URL length:', dataUrl.length);
+      
+      try {
+        // Store in IndexedDB (handles large files much better than localStorage)
+        await saveImageToDB(dataUrl);
+        info('[Settings] Image saved to IndexedDB');
+        handleSettingChange(() => updateOverlaySettings({ alertImageUrl: dataUrl }));
+      } catch (err) {
+        logError('[Settings] Failed to save image:', err);
+        alert('Failed to save image. Please try a smaller file.');
+      } finally {
+        setImageLoading(false);
+      }
+    };
+    reader.onerror = () => {
+      alert('Failed to read image file');
+      setImageLoading(false);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveImage = () => {
-    updateOverlaySettings({ alertImageUrl: null });
+  const handleRemoveImage = async () => {
+    handleSettingChange(() => updateOverlaySettings({ alertImageUrl: null }));
+    // Clean up from both IndexedDB and old localStorage
+    await deleteImageFromDB();
+    localStorage.removeItem('minaqueue-alert-image');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -87,12 +245,42 @@ export function OverlaySettingsPage() {
               <p className="text-sm text-bone-white/60">Customize your OBS alert appearance</p>
             </div>
           </div>
-          <a 
-            href="/"
-            className="px-4 py-2 bg-cerber-violet/20 text-cerber-violet border border-cerber-violet/50 rounded-lg hover:bg-cerber-violet/30 transition-colors"
-          >
-            ← Back to Dashboard
-          </a>
+          <div className="flex items-center gap-3">
+            {/* Connection Status */}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm ${
+              wsConnected 
+                ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                : 'bg-red-500/20 text-red-400 border border-red-500/30'
+            }`}>
+              {wsConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+              {wsConnected ? 'Connected' : 'Disconnected'}
+            </div>
+            
+            {/* Save Button */}
+            <button
+              onClick={handleSave}
+              disabled={!wsConnected}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                saved
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                  : wsConnected
+                    ? hasUnsavedChanges
+                      ? 'bg-squeaky-pink text-bg-void hover:bg-squeaky-pink/90'
+                      : 'bg-cerber-violet/20 text-cerber-violet border border-cerber-violet/50 hover:bg-cerber-violet/30'
+                    : 'bg-bone-white/10 text-bone-white/40 border border-bone-white/20 cursor-not-allowed'
+              }`}
+            >
+              {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              {saved ? 'Saved!' : hasUnsavedChanges ? 'Save Changes' : 'Save'}
+            </button>
+            
+            <a 
+              href="/"
+              className="px-4 py-2 bg-cerber-violet/20 text-cerber-violet border border-cerber-violet/50 rounded-lg hover:bg-cerber-violet/30 transition-colors"
+            >
+              ← Dashboard
+            </a>
+          </div>
         </div>
       </header>
 
@@ -137,9 +325,10 @@ export function OverlaySettingsPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png,image/jpeg,image/gif,image/webp,image/*"
                 onChange={handleImageUpload}
                 className="hidden"
+                id="alert-image-upload"
               />
               
               {settings.overlay.alertImageUrl ? (
@@ -158,12 +347,12 @@ export function OverlaySettingsPage() {
                     </button>
                   </div>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 text-sm bg-bone-white/10 hover:bg-bone-white/20 rounded-lg transition-colors"
+                    <label
+                      htmlFor="alert-image-upload"
+                      className="px-3 py-1.5 text-sm bg-bone-white/10 hover:bg-bone-white/20 rounded-lg transition-colors cursor-pointer"
                     >
                       Change Image
-                    </button>
+                    </label>
                   </div>
                   
                   {/* Image Size */}
@@ -176,20 +365,29 @@ export function OverlaySettingsPage() {
                       min="50"
                       max="300"
                       value={settings.overlay.alertImageSize}
-                      onChange={(e) => updateOverlaySettings({ alertImageSize: parseInt(e.target.value) })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ alertImageSize: parseInt(e.target.value) }))}
                       className="w-full accent-cerber-violet"
                     />
                   </div>
                 </div>
               ) : (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full px-4 py-8 border-2 border-dashed border-bone-white/30 rounded-lg hover:border-cerber-violet/50 transition-colors flex flex-col items-center gap-3"
+                <label
+                  htmlFor="alert-image-upload"
+                  className={`w-full px-4 py-8 border-2 border-dashed border-bone-white/30 rounded-lg hover:border-cerber-violet/50 transition-colors flex flex-col items-center gap-3 cursor-pointer ${imageLoading ? 'opacity-50 pointer-events-none' : ''}`}
                 >
-                  <Upload className="w-10 h-10 text-bone-white/40" />
-                  <span className="text-bone-white/60">Click to upload image or GIF</span>
-                  <span className="text-xs text-bone-white/40">PNG, JPG, GIF supported</span>
-                </button>
+                  {imageLoading ? (
+                    <>
+                      <div className="w-10 h-10 border-4 border-cerber-violet/30 border-t-cerber-violet rounded-full animate-spin" />
+                      <span className="text-bone-white/60">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-10 h-10 text-bone-white/40" />
+                      <span className="text-bone-white/60">Click to upload image or GIF</span>
+                      <span className="text-xs text-bone-white/40">PNG, JPG, GIF supported (max 10MB)</span>
+                    </>
+                  )}
+                </label>
               )}
             </div>
 
@@ -206,7 +404,7 @@ export function OverlaySettingsPage() {
                   <label className="block text-sm text-bone-white/70 mb-2">Font Family</label>
                   <select
                     value={settings.overlay.fontFamily}
-                    onChange={(e) => updateOverlaySettings({ fontFamily: e.target.value })}
+                    onChange={(e) => handleSettingChange(() => updateOverlaySettings({ fontFamily: e.target.value }))}
                     className="w-full px-3 py-2 rounded-lg bg-bg-void border border-bone-white/30 text-bone-white focus:border-cerber-violet focus:outline-none"
                   >
                     {FONT_OPTIONS.map((font) => (
@@ -227,7 +425,7 @@ export function OverlaySettingsPage() {
                     min="12"
                     max="48"
                     value={settings.overlay.fontSize}
-                    onChange={(e) => updateOverlaySettings({ fontSize: parseInt(e.target.value) })}
+                    onChange={(e) => handleSettingChange(() => updateOverlaySettings({ fontSize: parseInt(e.target.value) }))}
                     className="w-full accent-cerber-violet mt-2"
                   />
                 </div>
@@ -249,13 +447,13 @@ export function OverlaySettingsPage() {
                     <input
                       type="color"
                       value={settings.overlay.usernameColor}
-                      onChange={(e) => updateOverlaySettings({ usernameColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ usernameColor: e.target.value }))}
                       className="w-12 h-10 rounded cursor-pointer border-0 bg-transparent"
                     />
                     <input
                       type="text"
                       value={settings.overlay.usernameColor}
-                      onChange={(e) => updateOverlaySettings({ usernameColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ usernameColor: e.target.value }))}
                       className="flex-1 px-2 py-1.5 rounded bg-bg-void border border-bone-white/30 text-bone-white text-sm"
                     />
                   </div>
@@ -268,13 +466,13 @@ export function OverlaySettingsPage() {
                     <input
                       type="color"
                       value={settings.overlay.amountColor}
-                      onChange={(e) => updateOverlaySettings({ amountColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ amountColor: e.target.value }))}
                       className="w-12 h-10 rounded cursor-pointer border-0 bg-transparent"
                     />
                     <input
                       type="text"
                       value={settings.overlay.amountColor}
-                      onChange={(e) => updateOverlaySettings({ amountColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ amountColor: e.target.value }))}
                       className="flex-1 px-2 py-1.5 rounded bg-bg-void border border-bone-white/30 text-bone-white text-sm"
                     />
                   </div>
@@ -287,13 +485,13 @@ export function OverlaySettingsPage() {
                     <input
                       type="color"
                       value={settings.overlay.messageColor}
-                      onChange={(e) => updateOverlaySettings({ messageColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ messageColor: e.target.value }))}
                       className="w-12 h-10 rounded cursor-pointer border-0 bg-transparent"
                     />
                     <input
                       type="text"
                       value={settings.overlay.messageColor}
-                      onChange={(e) => updateOverlaySettings({ messageColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ messageColor: e.target.value }))}
                       className="flex-1 px-2 py-1.5 rounded bg-bg-void border border-bone-white/30 text-bone-white text-sm"
                     />
                   </div>
@@ -306,13 +504,13 @@ export function OverlaySettingsPage() {
                     <input
                       type="color"
                       value={settings.overlay.alertBorderColor}
-                      onChange={(e) => updateOverlaySettings({ alertBorderColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ alertBorderColor: e.target.value }))}
                       className="w-12 h-10 rounded cursor-pointer border-0 bg-transparent"
                     />
                     <input
                       type="text"
                       value={settings.overlay.alertBorderColor}
-                      onChange={(e) => updateOverlaySettings({ alertBorderColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ alertBorderColor: e.target.value }))}
                       className="flex-1 px-2 py-1.5 rounded bg-bg-void border border-bone-white/30 text-bone-white text-sm"
                     />
                   </div>
@@ -325,13 +523,13 @@ export function OverlaySettingsPage() {
                     <input
                       type="color"
                       value={settings.overlay.alertBackgroundColor}
-                      onChange={(e) => updateOverlaySettings({ alertBackgroundColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ alertBackgroundColor: e.target.value }))}
                       className="w-12 h-10 rounded cursor-pointer border-0 bg-transparent"
                     />
                     <input
                       type="text"
                       value={settings.overlay.alertBackgroundColor}
-                      onChange={(e) => updateOverlaySettings({ alertBackgroundColor: e.target.value })}
+                      onChange={(e) => handleSettingChange(() => updateOverlaySettings({ alertBackgroundColor: e.target.value }))}
                       className="flex-1 px-2 py-1.5 rounded bg-bg-void border border-bone-white/30 text-bone-white text-sm"
                     />
                   </div>
@@ -348,7 +546,7 @@ export function OverlaySettingsPage() {
                   <input
                     type="checkbox"
                     checked={settings.overlay.showAmount}
-                    onChange={(e) => updateOverlaySettings({ showAmount: e.target.checked })}
+                    onChange={(e) => handleSettingChange(() => updateOverlaySettings({ showAmount: e.target.checked }))}
                     className="w-5 h-5 accent-cerber-violet rounded"
                   />
                   <span className="text-bone-white">Show amount (bits/donation)</span>
@@ -358,7 +556,7 @@ export function OverlaySettingsPage() {
                   <input
                     type="checkbox"
                     checked={settings.overlay.showMessage}
-                    onChange={(e) => updateOverlaySettings({ showMessage: e.target.checked })}
+                    onChange={(e) => handleSettingChange(() => updateOverlaySettings({ showMessage: e.target.checked }))}
                     className="w-5 h-5 accent-cerber-violet rounded"
                   />
                   <span className="text-bone-white">Show message text</span>
@@ -376,7 +574,7 @@ export function OverlaySettingsPage() {
                   max="15000"
                   step="500"
                   value={settings.overlay.alertDuration}
-                  onChange={(e) => updateOverlaySettings({ alertDuration: parseInt(e.target.value) })}
+                  onChange={(e) => handleSettingChange(() => updateOverlaySettings({ alertDuration: parseInt(e.target.value) }))}
                   className="w-full accent-cerber-violet"
                 />
               </div>

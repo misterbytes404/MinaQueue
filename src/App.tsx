@@ -36,8 +36,8 @@ function App() {
   // Initialize TTS queue manager
   const { forcePlay } = useTTSQueue();
   
-  // WebSocket connection to overlay server (only for dashboard, not overlay)
-  const shouldConnectWS = !isOverlayMode && !isAuthCallback && !isOverlaySettings;
+  // WebSocket connection to overlay server (only for dashboard and settings page, not overlay)
+  const shouldConnectWS = !isOverlayMode && !isAuthCallback;
   
   // Handle messages from overlay (e.g., when an alert finishes playing)
   const handleWSMessage = useCallback((message: WSMessageType) => {
@@ -73,13 +73,8 @@ function App() {
     }
   }, [settings.isOpen, wsConnected, sendGate, shouldConnectWS]);
 
-  // Broadcast overlay settings changes
-  useEffect(() => {
-    if (wsConnected && shouldConnectWS && settings.overlay) {
-      debug('[Dashboard] Broadcasting overlay settings');
-      sendSettings(settings.overlay);
-    }
-  }, [settings.overlay, wsConnected, sendSettings, shouldConnectWS]);
+  // NOTE: Overlay settings are broadcast from the OverlaySettingsPage, not from here.
+  // The dashboard doesn't have the full overlay settings (e.g., alertImageUrl is stored in IndexedDB).
 
   // Handle play button - broadcast to overlay
   const handlePlayItem = useCallback((itemId: string) => {
@@ -152,7 +147,7 @@ function App() {
 
   // Render Overlay Settings page
   if (isOverlaySettings) {
-    return <OverlaySettingsPage />;
+    return <OverlaySettingsPage wsConnected={wsConnected} onSendSettings={sendSettings} />;
   }
 
   return (
