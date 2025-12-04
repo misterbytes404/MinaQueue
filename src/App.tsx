@@ -78,13 +78,13 @@ function App() {
     }
   }, [wsConnected, shouldConnectWS, providerConnection.accessToken, sendToken]);
 
-  // Broadcast TTS voice changes to overlay
+  // Broadcast TTS settings changes to overlay
   useEffect(() => {
     if (wsConnected && shouldConnectWS) {
-      debug('[Dashboard] Broadcasting TTS voice:', settings.overlay.ttsVoice);
+      debug('[Dashboard] Broadcasting TTS settings - voice:', settings.overlay.ttsVoice, 'volume:', settings.overlay.ttsVolume);
       sendSettings(settings.overlay);
     }
-  }, [settings.overlay.ttsVoice, wsConnected, sendSettings, shouldConnectWS]);
+  }, [settings.overlay.ttsVoice, settings.overlay.ttsVolume, wsConnected, sendSettings, shouldConnectWS]);
 
   // Handle play button - broadcast to overlay (TTS happens on overlay side)
   const handlePlayItem = useCallback((itemId: string) => {

@@ -114,6 +114,7 @@ export const useAppStore = create<AppState>()(
           showAmount: true,
           showMessage: true,
           ttsVoice: 'Brian', // Default to Brian (cloud TTS)
+          ttsVolume: 1.0, // Default volume
         },
       },
       

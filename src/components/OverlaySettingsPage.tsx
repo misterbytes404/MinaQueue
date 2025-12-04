@@ -465,6 +465,22 @@ export function OverlaySettingsPage({ wsConnected, onSendSettings }: OverlaySett
                   </select>
                 </div>
                 
+                {/* Volume Slider */}
+                <div>
+                  <label className="block text-sm text-bone-white/70 mb-2">
+                    Volume: {Math.round((settings.overlay.ttsVolume ?? 1) * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={settings.overlay.ttsVolume ?? 1}
+                    onChange={(e) => handleSettingChange(() => updateOverlaySettings({ ttsVolume: parseFloat(e.target.value) }))}
+                    className="w-full accent-cerber-violet"
+                  />
+                </div>
+                
                 {/* Test Voice Button */}
                 <div>
                   <button
@@ -472,7 +488,8 @@ export function OverlaySettingsPage({ wsConnected, onSendSettings }: OverlaySett
                       if (voiceTestPlaying) return;
                       setVoiceTestPlaying(true);
                       const voice = settings.overlay.ttsVoice || DEFAULT_CLOUD_VOICE;
-                      playCloudTTS('Hello! This is a test of the text to speech voice.', voice, 1)
+                      const volume = settings.overlay.ttsVolume ?? 1;
+                      playCloudTTS('Hello! This is a test of the text to speech voice.', voice, volume)
                         .promise
                         .finally(() => setVoiceTestPlaying(false));
                     }}

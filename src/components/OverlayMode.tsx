@@ -71,6 +71,7 @@ const defaultOverlaySettings: OverlaySettings = {
   showAmount: true,
   showMessage: true,
   ttsVoice: 'Brian', // Default to Brian (cloud TTS)
+  ttsVolume: 1.0, // Default volume
 };
 
 export function OverlayMode() {
@@ -99,7 +100,6 @@ export function OverlayMode() {
     }
     return defaultOverlaySettings;
   });
-  const [volume] = useState(1);
   const [ttsFinished, setTtsFinished] = useState(true); // Track if TTS has finished
   const [audioUnlocked, setAudioUnlocked] = useState(false); // Always start false - must verify audio works
   
@@ -395,6 +395,7 @@ export function OverlayMode() {
       currentTTSCancel.current = null;
     }
     
+    const volume = overlaySettings.ttsVolume ?? 1;
     if (volume > 0 && playingItem.message) {
       // Strip cheer emotes and speak only the user's actual message
       const cleanMessage = stripCheerEmotes(playingItem.message);
@@ -405,7 +406,7 @@ export function OverlayMode() {
         const voice = overlaySettings.ttsVoice || 'Brian';
         const useCloud = isCloudVoice(voice);
         
-        info('[Overlay] TTS Decision - overlaySettings.ttsVoice:', overlaySettings.ttsVoice, 'resolved voice:', voice, 'isCloudVoice:', useCloud);
+        info('[Overlay] TTS Decision - overlaySettings.ttsVoice:', overlaySettings.ttsVoice, 'resolved voice:', voice, 'isCloudVoice:', useCloud, 'volume:', volume);
         
         // Use appropriate TTS service
         const { promise, cancel } = useCloud 

@@ -14,9 +14,10 @@ export function Footer() {
     
     setVoiceTestPlaying(true);
     const voice = settings.overlay.ttsVoice || DEFAULT_CLOUD_VOICE;
-    console.log('[Footer] Testing voice:', voice, 'volume:', settings.volume);
+    const volume = settings.overlay.ttsVolume ?? settings.volume;
+    console.log('[Footer] Testing voice:', voice, 'volume:', volume);
     
-    const { promise } = testCloudVoice(voice, settings.volume);
+    const { promise } = testCloudVoice(voice, volume);
     promise
       .then(() => console.log('[Footer] Voice test completed'))
       .catch((err) => console.error('[Footer] Voice test error:', err))
@@ -34,12 +35,16 @@ export function Footer() {
             min="0"
             max="1"
             step="0.1"
-            value={settings.volume}
-            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            value={settings.overlay.ttsVolume ?? settings.volume}
+            onChange={(e) => {
+              const vol = parseFloat(e.target.value);
+              setVolume(vol);
+              updateOverlaySettings({ ttsVolume: vol });
+            }}
             className="w-24 accent-cerber-violet"
           />
           <span className="text-sm text-bone-white/70 w-10">
-            {Math.round(settings.volume * 100)}%
+            {Math.round((settings.overlay.ttsVolume ?? settings.volume) * 100)}%
           </span>
         </div>
 

@@ -45,6 +45,7 @@ export interface OverlaySettings {
   
   // TTS Settings
   ttsVoice: string; // StreamElements voice ID (e.g., 'Brian', 'Amy')
+  ttsVolume: number; // Volume level 0-1
 }
 
 // Application Settings
