@@ -27,7 +27,8 @@ There are **two ways** to use MinaQueue:
 
 ---
 
-## ☁️ Option A: Hosted Version (See Dev Notes Below for Hosting Instructions)
+## ☁️ Option A: Hosted Version
+_See Dev Notes Section Below for Hosting Instructions_
 
 If someone is hosting MinaQueue for you (like a friend or tech person), you just need:
 
