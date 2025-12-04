@@ -299,7 +299,7 @@ Every time you want to stream with MinaQueue:
 
 ## 💜 Credits
 
-Made with love by **BytesWan | Coder Minawan** for **CerberVT**
+Made by **BytesWan | Coder Minawan**
 
 ---
 
