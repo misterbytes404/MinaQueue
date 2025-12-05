@@ -22,8 +22,8 @@ There are **two ways** to use MinaQueue:
 
 | Option |  Difficulty |
 |--------|------------|
-| **☁️ Hosted Version** | ⭐ Easy |
-| **💻 Local Setup** |  ⭐⭐⭐ Moderate |
+| **☁️ Hosted Version** | Easy |
+| **💻 Local Setup** |  Moderate |
 
 ---
 
