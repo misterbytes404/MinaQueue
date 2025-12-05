@@ -2,7 +2,7 @@
 
 # 🦴 MinaQueue
 
-**A TTS Queue Manager for Streamers**
+**A TTS Queue Manager**
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
