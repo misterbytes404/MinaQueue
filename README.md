@@ -1,115 +1,117 @@
-# 🦴 MinaQueue - TTS Queue Manager
+<div align="center">
 
-A cute, hellhound-themed TTS alert manager that lets you **pause and queue Cheer alerts** during important stream moments!
+# 🦴 MinaQueue
 
----
+**A TTS Queue Manager for Streamers**
 
-## ✨ What Does MinaQueue Do?
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-7.2-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Amazon Polly](https://img.shields.io/badge/Amazon_Polly-TTS-FF9900?style=flat-square&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/polly/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-Ever get a loud TTS alert right in the middle of an emotional cutscene? MinaQueue fixes that!
+*Pause and queue Cheer alerts during important stream moments*
 
-- **🚪 Gate Control** - One click to pause all TTS alerts
-- **📋 Queue System** - Alerts wait patiently until you're ready
-- **🎤 Cloud TTS** - Same voice in your browser AND OBS (Brian from Amazon Polly!)
-- **🎨 Customizable** - Change colors, fonts, and alert images
-- **🦴 Bone-themed UI** - Because you're a hellhound!
+[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Configuration](#-configuration) • [Troubleshooting](#-troubleshooting)
 
----
-
-## 🚀 Choose Your Setup
-
-There are **two ways** to use MinaQueue:
-
-| Option |  Difficulty |
-|--------|------------|
-| **☁️ Hosted Version** | Easy |
-| **💻 Local Setup** |  Moderate |
+</div>
 
 ---
 
-## ☁️ Option A: Hosted Version (UNTESTED)
-_See Dev Notes Section Below for Hosting Instructions_
+## ✨ Features
 
-If someone is hosting MinaQueue for you (like a friend or tech person), you just need:
-
-1. **Dashboard URL** - Something like `https://minaqueue.yourname.app`
-2. **Overlay URL** - Same URL but with `/overlay` at the end
-
-**That's it!** No installation needed. Skip to [How to Use MinaQueue](#-how-to-use-minaqueue) to learn how to use it.
+| Feature | Description |
+|---------|-------------|
+| 🚪 **Gate Control** | One-click pause/resume for all TTS alerts |
+| 📋 **Queue System** | Alerts queue silently until you're ready |
+| 🎤 **Cloud TTS** | Consistent voice across browser and OBS (Amazon Polly) |
+| 🎨 **Customizable** | Colors, fonts, images, and alert duration |
+| 🔄 **Real-time Sync** | Dashboard and overlay stay in sync via WebSocket |
 
 ---
 
-## 💻 Option B: Local Setup
+## 🚀 Installation
 
-### Requirements
+### Option A: Hosted Version
+
+> ⚠️ **Untested** - See Developer Notes for hosting instructions
+
+If someone is hosting MinaQueue for you:
+
+1. **Dashboard URL** - e.g., `https://minaqueue.yourname.app`
+2. **Overlay URL** - Dashboard URL + `/overlay`
+
+Skip to [Usage](#-usage) section.
+
+---
+
+### Option B: Local Setup
+
+**Requirements:**
 
 - Windows 10/11
-- [Node.js LTS](https://nodejs.org/) installed
+- [Node.js LTS](https://nodejs.org/)
 - StreamElements account
 - OBS Studio
-- Amazon AWS account (for TTS - ~$1-3/month, first year mostly free)
+- Amazon AWS account (~$1-3/month, first year mostly free)
 
-### Step 1: Install Node.js & pnpm
-
-Install [Node.js LTS](https://nodejs.org/), then open PowerShell:
+#### 1. Install Dependencies
 
 ```powershell
 npm install -g pnpm
 ```
 
-### Step 2: Clone the Repository
+#### 2. Clone & Install
 
 ```powershell
-cd C:\
 git clone https://github.com/misterbytes404/MinaQueue.git
 cd MinaQueue
 pnpm install
 ```
 
-Or download the ZIP from GitHub and extract to `C:\MinaQueue`.
+#### 3. Start the Application
 
-### Step 3: Start MinaQueue
+Open two PowerShell windows:
 
-Open **two PowerShell windows**:
-
-**Window 1 - Server:**
 ```powershell
-cd C:\MinaQueue
+# Terminal 1 - Server
 pnpm run server
-```
 
-**Window 2 - App:**
-```powershell
-cd C:\MinaQueue
+# Terminal 2 - Frontend
 pnpm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+Open `http://localhost:5173`
 
 ---
 
-## 🔗 Connect to StreamElements
+## ⚙️ Configuration
 
-1. Go to [StreamElements Account Settings](https://streamelements.com/dashboard/account/channels)
-2. Click **"Show secrets"**
-3. Copy your **JWT Token**
-4. Paste it in MinaQueue and click **Connect**
+### StreamElements Connection
 
----
-
-## 📺 OBS Overlay Setup
-
-1. Add a **Browser** source in OBS
-2. URL: `http://localhost:5173/overlay`
-3. Size: **1920x1080**
-
-**Note:** Disable your existing StreamElements Cheer/Bits alert to avoid duplicates.
+1. [StreamElements Account Settings](https://streamelements.com/dashboard/account/channels) → **Show secrets**
+2. Copy **JWT Token** → Paste in MinaQueue → **Connect**
 
 ---
 
-## 🔊 Amazon Polly Setup (TTS)
+### OBS Browser Source
 
-### Cost
+| Setting | Value |
+|---------|-------|
+| URL | `http://localhost:5173/overlay` |
+| Width | 1920 |
+| Height | 1080 |
+
+> Disable existing StreamElements Cheer/Bits alerts to avoid duplicates
+
+---
+
+### Amazon Polly (TTS)
+
+<details>
+<summary>Setup Instructions</summary>
+
+#### Pricing
 
 | Usage | Monthly Cost |
 |-------|--------------|
@@ -151,20 +153,22 @@ AWS_REGION=us-east-1
 
 3. Restart the server
 
+</details>
+
 ---
 
-## 🎮 How to Use MinaQueue
+## 🎮 Usage
 
-### The Gate
+### Gate Control
 
 The big button at the top controls whether alerts play:
 
 | State | What Happens |
 |-------|--------------|
 | 🚪 **OPEN** | Alerts play immediately |
-| 🔒 **CLOSED** | Alerts queue up and wait |
+| 🔒 **CLOSED** | Alerts queue silently |
 
-### The Queue
+### Queue Management
 
 When the gate is closed, alerts stack up in your queue. You can:
 
@@ -182,15 +186,14 @@ When the gate is closed, alerts stack up in your queue. You can:
 
 ## 🎨 Customization
 
-**Overlay Settings:** `http://localhost:5173/overlay-settings`
-- Alert image, colors, font, duration
-
-**Voice & Volume:** Dashboard footer
-- TTS voice selection, volume slider (syncs to OBS)
+| Setting | Location |
+|---------|----------|
+| Alert image, colors, font | `http://localhost:5173/overlay-settings` |
+| TTS voice, volume | Dashboard footer |
 
 ---
 
-## 🗣️ Available TTS Voices
+### Available TTS Voices
 
 | Voice | Accent | Sound |
 |-------|--------|-------|
@@ -231,25 +234,15 @@ When the gate is closed, alerts stack up in your queue. You can:
 
 ---
 
-## 🔧 Quick Reference
+## 📝 Quick Reference
 
-| What | URL/Command |
-|------|-------------|
+| Resource | URL/Command |
+|----------|-------------|
 | Dashboard | `http://localhost:5173` |
 | OBS Overlay | `http://localhost:5173/overlay` |
 | Overlay Settings | `http://localhost:5173/overlay-settings` |
 | Start Server | `pnpm run server` |
 | Start App | `pnpm run dev` |
-
-### 🔁 Starting MinaQueue Each Time
-
-Every time you want to stream with MinaQueue:
-
-1. Open PowerShell, run: `cd C:\MinaQueue` then `pnpm run server`
-2. Open another PowerShell, run: `cd C:\MinaQueue` then `pnpm run dev`
-3. Open `http://localhost:5173` in your browser
-4. Connect to StreamElements (first time only, it remembers!)
-5. Start streaming!
 
 ---
 
@@ -258,6 +251,40 @@ Every time you want to stream with MinaQueue:
 | Bug | Workaround |
 |-----|------------|
 | Custom alert image (GIF) doesn't persist after restart | Re-upload the image in Overlay Settings after starting the app |
+
+---
+
+## 📋 Roadmap
+
+### 🔐 Security & Authentication
+- [ ] Twitch OAuth login
+- [ ] User whitelist (admin controls who can access)
+- [ ] Session management
+- [ ] Role-based access (admin vs viewer)
+
+### 🎨 UI & Personalization  
+- [ ] Theme presets (dark, light, custom)
+- [ ] Alert animation options
+- [ ] Sound effect customization
+- [ ] Mobile-responsive dashboard
+
+### 🔧 Core Features
+- [ ] Persistent alert image storage (fix known bug)
+- [ ] Multiple queue support
+- [ ] Alert history/logs
+- [ ] Hotkey support for gate control
+- [ ] Alert preview in settings
+
+### ☁️ Deployment
+- [ ] Railway/Render deployment testing
+- [ ] Docker support
+- [ ] One-click install script
+
+### 🔌 Integrations
+- [ ] Streamlabs support (re-add if needed)
+- [ ] Direct Twitch EventSub integration
+- [ ] Custom TTS voice uploads
+- [ ] Discord webhook notifications
 
 ---
 
@@ -319,8 +346,9 @@ pnpm run server   # Start WebSocket/TTS server (port 5175)
 pnpm run build    # Build for production
 ```
 
-### Deployment to Railway/Render
-#### Untested
+### Deployment (Railway/Render)
+
+> ⚠️ **Untested**
 
 Can be deployed to Railway, Render, or any Node.js hosting:
 
